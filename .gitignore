@@ -16,3 +16,6 @@ coverage/
 *.tsbuildinfo
 data/*.db
 data/*.sqlite
+backend/data/*.db
+backend/data/*.sqlite
+.claude/

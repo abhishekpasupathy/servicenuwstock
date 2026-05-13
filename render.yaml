@@ -1,22 +1,23 @@
 services:
   - type: web
-    name: now-intelligence-api
+    name: dadstock-api
     runtime: python
     rootDir: backend
     plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
     envVars:
       - key: APP_NAME
-        value: NOW Intelligence API
+        value: DadStock API
       - key: APP_ENV
         value: production
       - key: API_PREFIX
-        value: /api/v1
+        value: /api
       - key: BACKEND_CORS_ORIGINS
         sync: false
       - key: SQLITE_PATH
-        value: /tmp/now_intelligence.sqlite
+        value: /tmp/dadstock.sqlite
       - key: CACHE_TTL_SECONDS
         value: "300"
       - key: MARKET_CACHE_TTL_SECONDS

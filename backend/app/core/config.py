@@ -5,13 +5,13 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    app_name: str = "NOW Intelligence API"
+    app_name: str = "DadStock API"
     app_env: str = "development"
-    api_prefix: str = "/api/v1"
+    api_prefix: str = "/api"
     backend_cors_origins: str = Field(
         default="http://localhost:3000,http://127.0.0.1:3000"
     )
-    sqlite_path: str = "./data/now_intelligence.sqlite"
+    sqlite_path: str = "./data/dadstock.sqlite"
     cache_ttl_seconds: int = 300
     market_cache_ttl_seconds: int = 1800
     market_fallback_cache_ttl_seconds: int = 600

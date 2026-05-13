@@ -73,12 +73,12 @@ export type MarketSnapshot = {
   metadata: SnapshotMetadata;
 };
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
 
 function getApiBaseUrl(): string {
   if (!API_BASE_URL) {
     throw new Error(
-      "NEXT_PUBLIC_API_BASE_URL is not configured. Set it to your backend /api URL.",
+      "The API URL is not configured. Set NEXT_PUBLIC_API_BASE_URL to your backend /api URL.",
     );
   }
 
@@ -86,14 +86,16 @@ function getApiBaseUrl(): string {
 }
 
 async function fetchJson<T>(path: string): Promise<T> {
-  const response = await fetch(`${getApiBaseUrl()}${path}`, {
+  const url = `${getApiBaseUrl()}${path}`;
+  const response = await fetch(url, {
+    cache: "no-store",
     headers: {
       Accept: "application/json",
     },
   });
 
   if (!response.ok) {
-    let message = "Market data request failed.";
+    let message = `Market data request failed (${response.status}).`;
 
     try {
       const payload = (await response.json()) as { detail?: string };
@@ -137,5 +139,25 @@ export async function getMarketSnapshot(
 
   return fetchJson<MarketSnapshot>(
     `/snapshot/${encodedTicker}?period=${period}&interval=1d`,
+  );
+}
+
+export async function getQuote(ticker: string): Promise<QuoteResponse> {
+  const encodedTicker = encodeURIComponent(normalizeTicker(ticker));
+  return fetchJson<QuoteResponse>(`/quote/${encodedTicker}`);
+}
+
+export async function getProfile(ticker: string): Promise<ProfileResponse> {
+  const encodedTicker = encodeURIComponent(normalizeTicker(ticker));
+  return fetchJson<ProfileResponse>(`/profile/${encodedTicker}`);
+}
+
+export async function getHistory(
+  ticker: string,
+  period: ChartPeriod,
+): Promise<HistoryResponse> {
+  const encodedTicker = encodeURIComponent(normalizeTicker(ticker));
+  return fetchJson<HistoryResponse>(
+    `/history/${encodedTicker}?period=${period}&interval=1d`,
   );
 }

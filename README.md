@@ -1,21 +1,91 @@
-# NOW Intelligence
+# DadStock
 
-Public stock dashboard with a Next.js frontend and FastAPI backend. The frontend is designed for Vercel, and the backend is designed for Render or Railway.
+DadStock is a small full-stack stock dashboard I built for my dad so he can check a few stocks without bouncing between finance sites. It keeps the interface simple: search a ticker, see the latest quote, review the chart, and skim basic company details.
 
-## Public Architecture
+The app uses free public market data through `yfinance`, so it is useful for tracking and learning, not for trading decisions.
 
-- Browser loads the Next.js app from Vercel.
-- Vercel frontend calls the deployed FastAPI backend at `https://<backend-host>/api`.
-- FastAPI serves `/api/snapshot/{ticker}` and health checks.
-- Backend uses in-memory cache for hot responses and SQLite for persistent response cache.
-- yfinance/Yahoo Finance remains the upstream market data provider, with retry and fallback sample data when throttled.
+## Features
 
-## Run Locally
+- Ticker search with validation
+- Latest quote, day range, volume, market cap, and daily move
+- Historical close chart with `1M`, `3M`, `6M`, `1Y`, and `MAX` views
+- Company profile with sector, industry, country, website, and summary
+- Backend response caching to reduce repeated upstream calls
+- Degraded fallback responses when the upstream provider is rate limited
+- Dark, responsive dashboard UI
+
+## Tech Stack
+
+- Frontend: Next.js, React, TypeScript, Tailwind CSS, Recharts
+- Backend: FastAPI, Pydantic, yfinance, pandas
+- Cache: in-memory TTL cache plus SQLite response cache
+- Deployment: Vercel for the frontend, Render for the backend
+
+## Architecture
+
+```text
+Browser
+  -> Vercel Next.js app
+  -> NEXT_PUBLIC_API_BASE_URL
+  -> Render FastAPI service
+  -> yfinance / Yahoo Finance
+```
+
+The deployed frontend should call the backend with a base URL ending in `/api`.
+
+```text
+https://servicenuwstock-api.onrender.com/api/quote/AAPL
+https://servicenuwstock-api.onrender.com/api/snapshot/AAPL
+```
+
+## Project Structure
+
+```text
+.
+├── backend/
+│   ├── app/
+│   │   ├── core/
+│   │   ├── routers/
+│   │   ├── schemas/
+│   │   ├── services/
+│   │   └── utils/
+│   ├── requirements.txt
+│   └── runtime.txt
+├── frontend/
+│   ├── src/
+│   │   ├── app/
+│   │   ├── components/
+│   │   └── lib/
+│   └── package.json
+├── render.yaml
+└── README.md
+```
+
+## API Routes
+
+Base URL:
+
+```text
+https://servicenuwstock-api.onrender.com/api
+```
+
+Routes:
+
+- `GET /health`
+- `GET /quote/{ticker}`
+- `GET /profile/{ticker}`
+- `GET /history/{ticker}?period=1y&interval=1d`
+- `GET /snapshot/{ticker}?period=1y&interval=1d`
+
+The frontend dashboard uses `/snapshot/{ticker}` because it needs quote, profile, and history data in one request. Smaller components can use `/quote`, `/profile`, or `/history` directly.
+
+## Local Setup
 
 Backend:
 
 ```bash
 cd backend
+python -m venv .venv
 .venv/bin/pip install -r requirements.txt
 .venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
@@ -29,7 +99,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Local frontend env:
+For local backend development, set `frontend/.env.local` to:
 
 ```bash
 NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000/api
@@ -37,143 +107,80 @@ NEXT_PUBLIC_DEFAULT_TICKER=NOW
 NEXT_TELEMETRY_DISABLED=1
 ```
 
-Local backend env:
+Backend environment example:
 
 ```bash
-APP_NAME=NOW Intelligence API
+APP_NAME=DadStock API
 APP_ENV=development
-API_PREFIX=/api/v1
+API_PREFIX=/api
 BACKEND_CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
-SQLITE_PATH=./data/now_intelligence.sqlite
+SQLITE_PATH=./data/dadstock.sqlite
 CACHE_TTL_SECONDS=300
 MARKET_CACHE_TTL_SECONDS=1800
 MARKET_FALLBACK_CACHE_TTL_SECONDS=600
 ```
 
-## Backend Deployment: Render
+## Deployment
 
-1. Push this repository to GitHub.
-2. In Render, create a new Web Service from the repo.
-3. Set the root directory to `backend`.
-4. Use Python runtime.
-5. Build command:
+### Backend on Render
 
-```bash
-pip install -r requirements.txt
-```
+The root `render.yaml` is ready for a Render web service. The important settings are:
 
-6. Start command:
+- Root directory: `backend`
+- Build command: `pip install -r requirements.txt`
+- Start command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+- Health check: `/api/health`
 
-```bash
-uvicorn app.main:app --host 0.0.0.0 --port $PORT
-```
-
-7. Add backend environment variables:
+Production environment variables:
 
 ```bash
-APP_NAME=NOW Intelligence API
+APP_NAME=DadStock API
 APP_ENV=production
-API_PREFIX=/api/v1
+API_PREFIX=/api
 BACKEND_CORS_ORIGINS=https://your-vercel-app.vercel.app
-SQLITE_PATH=/tmp/now_intelligence.sqlite
+SQLITE_PATH=/tmp/dadstock.sqlite
 CACHE_TTL_SECONDS=300
 MARKET_CACHE_TTL_SECONDS=1800
 MARKET_FALLBACK_CACHE_TTL_SECONDS=600
 ```
 
-8. Deploy and confirm:
+After deployment, confirm:
 
 ```text
-https://your-render-service.onrender.com/api/v1/health
-https://your-render-service.onrender.com/api/snapshot/NOW
+https://servicenuwstock-api.onrender.com/api/health
+https://servicenuwstock-api.onrender.com/api/snapshot/AAPL
 ```
 
-The included `render.yaml` can also be used as a Render Blueprint. You must still set `BACKEND_CORS_ORIGINS` to the deployed Vercel origin.
+### Frontend on Vercel
 
-## Backend Deployment: Railway
+Set the Vercel project root to `frontend` and use the normal Next.js preset.
 
-1. Create a Railway project from the repo.
-2. Select the `backend` directory as the service root.
-3. Railway/Nixpacks will install from `requirements.txt`.
-4. The included `backend/railway.json` starts the app with:
+Required frontend environment variables:
 
 ```bash
-uvicorn app.main:app --host 0.0.0.0 --port $PORT
-```
-
-5. Add the same backend environment variables listed above, with `BACKEND_CORS_ORIGINS` set to the Vercel URL.
-
-For Railway persistent cache, use a mounted volume and set:
-
-```bash
-SQLITE_PATH=/data/now_intelligence.sqlite
-```
-
-## Frontend Deployment: Vercel
-
-1. Import the repository into Vercel.
-2. Set the project root directory to `frontend`.
-3. Framework preset should be Next.js.
-4. Build command:
-
-```bash
-npm run build
-```
-
-5. Install command:
-
-```bash
-npm install
-```
-
-6. Add frontend environment variables:
-
-```bash
-NEXT_PUBLIC_API_BASE_URL=https://your-backend-host.com/api
+NEXT_PUBLIC_API_BASE_URL=https://servicenuwstock-api.onrender.com/api
 NEXT_PUBLIC_DEFAULT_TICKER=NOW
 NEXT_TELEMETRY_DISABLED=1
 ```
 
-7. Deploy the frontend.
-8. Copy the final Vercel URL back into the backend `BACKEND_CORS_ORIGINS` value.
-9. Redeploy the backend after updating CORS.
+Redeploy the frontend after changing `NEXT_PUBLIC_API_BASE_URL`; Next.js reads public environment variables at build time.
 
-## Required Environment Variables
+## Screenshots
 
-Frontend:
+Add screenshots here after the next production deploy.
 
-- `NEXT_PUBLIC_API_BASE_URL`: Deployed backend API base URL ending in `/api`.
-- `NEXT_PUBLIC_DEFAULT_TICKER`: Initial ticker shown in the dashboard.
-- `NEXT_TELEMETRY_DISABLED`: Set to `1`.
+- Dashboard overview
+- Ticker search result
+- Mobile layout
 
-Backend:
+## Future Improvements
 
-- `APP_NAME`: API display name.
-- `APP_ENV`: Use `production` in public deployments.
-- `API_PREFIX`: Health API prefix, usually `/api/v1`.
-- `BACKEND_CORS_ORIGINS`: Comma-separated deployed frontend origins. Do not use localhost in production.
-- `SQLITE_PATH`: SQLite cache path.
-- `CACHE_TTL_SECONDS`: Hot in-memory default TTL.
-- `MARKET_CACHE_TTL_SECONDS`: Successful market response TTL.
-- `MARKET_FALLBACK_CACHE_TTL_SECONDS`: Degraded fallback response TTL.
+- Watchlist saved in local storage
+- Basic portfolio notes for tracked tickers
+- More chart indicators such as moving averages
+- Better provider abstraction if a paid market data API is added later
+- Unit tests for backend response shaping and frontend API helpers
 
-## Production Notes
+## Disclaimer
 
-- The frontend has no localhost fallback in code. `NEXT_PUBLIC_API_BASE_URL` must be configured during Vercel build.
-- The backend rejects production startup if CORS origins are missing, wildcarded, or still pointing at localhost.
-- CORS origins must be origins only, such as `https://your-app.vercel.app`, not paths and not trailing API URLs.
-- Render free services may sleep after inactivity. The first request after sleep can be slow.
-- Free Render filesystem storage is ephemeral. Use Railway volumes or a paid Render disk if cache persistence across redeploys matters.
-
-## Recommended Providers
-
-- Frontend: Vercel free tier.
-- Backend: Render for the simplest beginner setup, or Railway if you want easier persistent volumes.
-- Domain: Start with provider subdomains, then add a custom domain later.
-
-## Current Limitations
-
-- No authentication yet.
-- No Docker or Kubernetes yet.
-- yfinance/Yahoo throttling can still occur.
-- SQLite cache is appropriate for a single backend instance, not horizontally scaled deployments.
+This project is for personal tracking and education. Market data can be delayed, incomplete, or unavailable because it comes from free public sources. Nothing in this app is financial advice.

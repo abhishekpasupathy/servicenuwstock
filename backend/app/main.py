@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from typing import AsyncIterator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,7 +13,7 @@ logger = get_logger(__name__)
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     configure_logging(settings.app_env)
     logger.info("Starting %s", settings.app_name)
     yield
@@ -23,7 +24,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.app_name,
         version="0.1.0",
-        description="Stock intelligence API using free public market data sources.",
+        description="Stock dashboard API using free public market data sources.",
         lifespan=lifespan,
     )
 
@@ -36,7 +37,7 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(health.router, prefix=settings.api_prefix)
-    app.include_router(market.router, prefix="/api")
+    app.include_router(market.router, prefix=settings.api_prefix)
     return app
 
 

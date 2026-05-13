@@ -1,1 +1,1 @@
-"""NOW Intelligence backend package."""
+"""DadStock backend package."""

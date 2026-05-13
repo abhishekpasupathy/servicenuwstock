@@ -77,11 +77,36 @@ function calculateDailyChange(snapshot: MarketSnapshot | null): number | null {
   const price = snapshot?.quote.price;
   const previousClose = snapshot?.quote.previous_close;
 
-  if (!price || !previousClose) {
+  if (price === null || price === undefined || !previousClose) {
     return null;
   }
 
   return ((price - previousClose) / previousClose) * 100;
+}
+
+function formatTimestamp(value: string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function getDisplayError(message: string): string {
+  if (/not found/i.test(message)) {
+    return "I couldn't find market data for that ticker. Check the symbol and try again.";
+  }
+
+  if (/api url|next_public_api_base_url/i.test(message)) {
+    return "The frontend is missing its backend API URL. Set NEXT_PUBLIC_API_BASE_URL in Vercel.";
+  }
+
+  if (/rate limit|too many requests/i.test(message)) {
+    return "The market data provider is rate limiting requests. Try again in a few minutes.";
+  }
+
+  return message;
 }
 
 function MetricCard({
@@ -106,7 +131,7 @@ function MetricCard({
 
 function LoadingPanel() {
   return (
-    <div className="flex min-h-[360px] items-center justify-center rounded-lg border border-border bg-card">
+    <div className="flex min-h-[420px] items-center justify-center rounded-lg border border-border bg-card/80">
       <div className="flex items-center gap-3 text-sm text-muted-foreground">
         <Loader2 className="h-5 w-5 animate-spin text-primary" />
         Loading market data
@@ -199,19 +224,19 @@ export function StockDashboard() {
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <section className="border-b border-border bg-card/60">
+      <section className="border-b border-border bg-card/70">
         <div className="mx-auto flex max-w-7xl flex-col gap-6 px-5 py-7 sm:px-8 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="flex items-center gap-2 text-sm font-medium text-primary">
               <LineChart className="h-4 w-4" />
-              Market analytics
+              DadStock
             </div>
             <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
               Stock dashboard
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Search public equities and review quote, profile, price history,
-              daily movement, and volume from the FastAPI market service.
+              A compact market view for tracking quotes, company context, price
+              history, and volume from a FastAPI data service.
             </p>
           </div>
 
@@ -239,11 +264,12 @@ export function StockDashboard() {
               </div>
               <button
                 type="submit"
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex h-11 min-w-11 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={isLoading}
+                aria-label="Search ticker"
               >
                 {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                Search
+                <span className="hidden sm:inline">Search</span>
               </button>
             </div>
             {inputError ? (
@@ -266,7 +292,7 @@ export function StockDashboard() {
             <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
             <div>
               <p className="font-semibold text-foreground">Market data unavailable</p>
-              <p className="mt-1 text-muted-foreground">{error}</p>
+              <p className="mt-1 text-muted-foreground">{getDisplayError(error)}</p>
             </div>
           </div>
         ) : null}
@@ -288,20 +314,23 @@ export function StockDashboard() {
           <LoadingPanel />
         ) : snapshot ? (
           <div className={`space-y-5 ${isLoading ? "opacity-75" : ""}`}>
-            <div className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 shadow-sm shadow-black/20 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">
                   {snapshot.quote.exchange ?? "Exchange unavailable"} ·{" "}
                   {snapshot.quote.currency ?? "Currency unavailable"}
                 </p>
-                <h2 className="mt-2 text-3xl font-semibold">
+                <h2 className="mt-2 flex flex-col gap-1 text-3xl font-semibold sm:flex-row sm:items-baseline">
                   {snapshot.quote.ticker}
                   {snapshot.quote.name ? (
-                    <span className="ml-3 text-xl font-medium text-muted-foreground">
+                    <span className="text-xl font-medium text-muted-foreground sm:ml-3">
                       {snapshot.quote.name}
                     </span>
                   ) : null}
                 </h2>
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Updated {formatTimestamp(snapshot.metadata.fetched_at)}
+                </p>
               </div>
               <div className="text-left sm:text-right">
                 <div className="text-4xl font-semibold">
@@ -351,21 +380,21 @@ export function StockDashboard() {
             </div>
 
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1.65fr)_minmax(340px,0.75fr)]">
-              <div className="rounded-lg border border-border bg-card p-5">
-                <div className="flex items-center justify-between gap-4">
+              <div className="rounded-lg border border-border bg-card p-5 shadow-sm shadow-black/20">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <h3 className="text-lg font-semibold">Historical close</h3>
                     <p className="mt-1 text-sm text-muted-foreground">
                       {activePeriodLabel} · Daily interval · {snapshot.metadata.source}
                     </p>
                   </div>
-                  <div className="flex rounded-md border border-border bg-background p-1">
+                  <div className="flex w-full rounded-md border border-border bg-background p-1 sm:w-auto">
                     {PERIOD_OPTIONS.map((option) => (
                       <button
                         key={option.value}
                         type="button"
                         onClick={() => setSelectedPeriod(option.value)}
-                        className={`h-8 rounded px-3 text-xs font-semibold transition ${
+                        className={`h-8 flex-1 rounded px-3 text-xs font-semibold transition sm:flex-none ${
                           selectedPeriod === option.value
                             ? "bg-primary text-primary-foreground"
                             : "text-muted-foreground hover:text-foreground"
@@ -378,67 +407,73 @@ export function StockDashboard() {
                   </div>
                 </div>
                 <div className="mt-5 h-[360px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={chartData} margin={{ left: 0, right: 8, top: 8, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="closeGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.35} />
-                          <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.02} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" vertical={false} />
-                      <XAxis
-                        dataKey="date"
-                        tickFormatter={formatDate}
-                        minTickGap={32}
-                        stroke="hsl(var(--muted-foreground))"
-                        tickLine={false}
-                        axisLine={false}
-                        fontSize={12}
-                      />
-                      <YAxis
-                        domain={["dataMin", "dataMax"]}
-                        tickFormatter={(value) => `$${Number(value).toFixed(0)}`}
-                        stroke="hsl(var(--muted-foreground))"
-                        tickLine={false}
-                        axisLine={false}
-                        fontSize={12}
-                        width={52}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          background: "hsl(var(--card))",
-                          border: "1px solid hsl(var(--border))",
-                          borderRadius: "8px",
-                          color: "hsl(var(--foreground))",
-                        }}
-                        formatter={(value) => [
-                          formatCurrency(Number(value), currency),
-                          "Close",
-                        ]}
-                        labelFormatter={(label) =>
-                          new Intl.DateTimeFormat("en-US", {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
-                          }).format(new Date(`${label}T00:00:00`))
-                        }
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="close"
-                        stroke="hsl(var(--primary))"
-                        strokeWidth={2}
-                        fill="url(#closeGradient)"
-                        dot={false}
-                        activeDot={{ r: 4 }}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
+                  {chartData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={chartData} margin={{ left: 0, right: 8, top: 8, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="closeGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.35} />
+                            <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.02} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" vertical={false} />
+                        <XAxis
+                          dataKey="date"
+                          tickFormatter={formatDate}
+                          minTickGap={32}
+                          stroke="hsl(var(--muted-foreground))"
+                          tickLine={false}
+                          axisLine={false}
+                          fontSize={12}
+                        />
+                        <YAxis
+                          domain={["dataMin", "dataMax"]}
+                          tickFormatter={(value) => `$${Number(value).toFixed(0)}`}
+                          stroke="hsl(var(--muted-foreground))"
+                          tickLine={false}
+                          axisLine={false}
+                          fontSize={12}
+                          width={52}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            background: "hsl(var(--card))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "8px",
+                            color: "hsl(var(--foreground))",
+                          }}
+                          formatter={(value) => [
+                            formatCurrency(Number(value), currency),
+                            "Close",
+                          ]}
+                          labelFormatter={(label) =>
+                            new Intl.DateTimeFormat("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            }).format(new Date(`${label}T00:00:00`))
+                          }
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="close"
+                          stroke="hsl(var(--primary))"
+                          strokeWidth={2}
+                          fill="url(#closeGradient)"
+                          dot={false}
+                          activeDot={{ r: 4 }}
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex h-full items-center justify-center rounded-md border border-border bg-background text-sm text-muted-foreground">
+                      No historical prices returned for this period.
+                    </div>
+                  )}
                 </div>
               </div>
 
-              <aside className="rounded-lg border border-border bg-card p-5">
+              <aside className="rounded-lg border border-border bg-card p-5 shadow-sm shadow-black/20">
                 <div className="flex items-center gap-2">
                   <Building2 className="h-5 w-5 text-primary" />
                   <h3 className="text-lg font-semibold">Company profile</h3>

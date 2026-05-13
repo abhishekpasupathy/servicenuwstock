@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "NOW Intelligence",
-  description: "Local-first stock intelligence platform for ServiceNow investors.",
+  title: "DadStock",
+  description: "A personal stock dashboard for simple market tracking.",
 };
 
 export default function RootLayout({
