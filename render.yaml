@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: now-intelligence-api
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: APP_NAME
+        value: NOW Intelligence API
+      - key: APP_ENV
+        value: production
+      - key: API_PREFIX
+        value: /api/v1
+      - key: BACKEND_CORS_ORIGINS
+        sync: false
+      - key: SQLITE_PATH
+        value: /tmp/now_intelligence.sqlite
+      - key: CACHE_TTL_SECONDS
+        value: "300"
+      - key: MARKET_CACHE_TTL_SECONDS
+        value: "1800"
+      - key: MARKET_FALLBACK_CACHE_TTL_SECONDS
+        value: "600"

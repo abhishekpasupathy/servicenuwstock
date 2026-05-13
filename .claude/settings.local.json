@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(pg_isready)",
+      "Bash(brew services *)"
+    ]
+  }
+}
