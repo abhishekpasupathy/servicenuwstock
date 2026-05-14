@@ -4,6 +4,7 @@ router = APIRouter()
 
 @router.websocket("/ws/quote/{ticker}")
 async def quote_ws(websocket: WebSocket, ticker: str):
+
     await websocket.accept()
 
     while True:
