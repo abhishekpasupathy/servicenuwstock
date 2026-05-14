@@ -12,7 +12,8 @@ from slowapi.util import get_remote_address
 
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
-from app.routers import alerts, backtest, health, insights, market, portfolio, quant, risk
+from app.routers import alerts, backtest, health, insights, market, portfolio, quant, risk, websocket
+from app.services.realtime_feed import feed
 
 settings = get_settings()
 logger = get_logger(__name__)
@@ -23,8 +24,12 @@ limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     configure_logging(settings.app_env)
     logger.info("Starting %s", settings.app_name)
-    yield
-    logger.info("Stopping %s", settings.app_name)
+    await feed.connect()
+    try:
+        yield
+    finally:
+        await feed.stop()
+        logger.info("Stopping %s", settings.app_name)
 
 
 def create_app() -> FastAPI:
@@ -68,7 +73,9 @@ def create_app() -> FastAPI:
             content={"error": str(exc), "code": "INTERNAL_ERROR", "request_id": request.headers.get("x-request-id", "")},
         )
 
-    routers = (health.router, market.router, quant.router, risk.router, insights.router, portfolio.router, backtest.router, alerts.router)
+    app.include_router(websocket.router)
+
+    routers = (health.router, market.router, quant.router, risk.router, insights.router, portfolio.router, backtest.router, alerts.router, websocket.router)
     for router in routers:
         app.include_router(router, prefix=settings.api_prefix)
 

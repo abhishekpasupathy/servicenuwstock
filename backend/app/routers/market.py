@@ -7,6 +7,7 @@ from app.services.market_data import (
     get_quote as get_market_quote,
     get_snapshot,
 )
+from app.services.market_hours import get_market_status
 
 router = APIRouter(tags=["market"])
 
@@ -44,3 +45,8 @@ async def profile(ticker: str):
 @router.get("/snapshot/{ticker}")
 async def snapshot(ticker: str, period: str = "1y", interval: str = "1d"):
     return get_snapshot(ticker, period, interval)
+
+
+@router.get("/market/status")
+async def market_status():
+    return get_market_status()

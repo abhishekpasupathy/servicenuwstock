@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     postgres_url: str = "postgresql+asyncpg://now:nowpass@localhost:5432/nowdb"
     redis_url: str = "redis://localhost:6379/0"
     alpha_vantage_key: str | None = None
+    alpaca_api_key: str | None = None
+    alpaca_api_secret: str | None = None
+    finnhub_api_key: str | None = None
     default_ticker: str = "NOW"
     sqlite_path: str = "./data/dadstock.sqlite"
     cache_ttl_seconds: int = 300

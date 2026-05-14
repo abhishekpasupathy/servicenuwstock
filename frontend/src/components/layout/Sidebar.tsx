@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Activity, BarChart3, Brain, Gauge, Home, LineChart, Settings, WalletCards } from "lucide-react";
-import { money, useApi } from "@/lib/api";
-import type { Quote } from "@/lib/types";
+import { money } from "@/lib/api";
+import { useRealtimeQuote } from "@/hooks/useRealtimeQuote";
 
 const nav = [
   { href: "/", label: "Dashboard", icon: Home },
@@ -19,7 +19,7 @@ const nav = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { data } = useApi<Quote>("/quote/NOW");
+  const { quote } = useRealtimeQuote("NOW");
   return (
     <aside className="fixed left-0 top-0 z-20 hidden h-screen w-[232px] flex-col border-r border-[var(--border)] bg-[var(--bg-secondary)] md:flex">
       <div className="border-b border-[var(--border)] px-3 py-4">
@@ -40,11 +40,11 @@ export function Sidebar() {
       <div className="m-2 border border-[var(--border)] bg-[var(--bg-tertiary)] p-3">
         <div className="font-mono text-xs text-[var(--amber)]">LIVE QUOTE</div>
         <div className="mt-1 flex items-end justify-between">
-          <span className="font-mono text-xl">{money(data?.price)}</span>
-          <span className={(data?.change_pct ?? 0) >= 0 ? "positive text-sm" : "negative text-sm"}>{(data?.change_pct ?? 0).toFixed(1)}%</span>
+          <span className="font-mono text-xl">{money(quote?.price)}</span>
+          <span className={(quote?.change_pct ?? 0) >= 0 ? "positive text-sm" : "negative text-sm"}>{(quote?.change_pct ?? 0).toFixed(1)}%</span>
         </div>
         <div className="mt-2 grid grid-cols-2 gap-1 font-mono text-[10px] text-[var(--text-dim)]">
-          <span>SRC {data?.source ?? "--"}</span>
+          <span>SRC {quote?.provider ?? "--"}</span>
           <span className="text-right">F1 HELP</span>
         </div>
       </div>

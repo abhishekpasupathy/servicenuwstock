@@ -16,6 +16,12 @@ services:
         value: /api
       - key: BACKEND_CORS_ORIGINS
         sync: false
+      - key: ALPACA_API_KEY
+        sync: false
+      - key: ALPACA_API_SECRET
+        sync: false
+      - key: FINNHUB_API_KEY
+        sync: false
       - key: SQLITE_PATH
         value: /tmp/dadstock.sqlite
       - key: CACHE_TTL_SECONDS

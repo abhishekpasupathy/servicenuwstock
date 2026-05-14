@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Sidebar } from "@/components/layout/Sidebar";
+import { LiveTickerBar } from "@/components/layout/LiveTickerBar";
 import { TopBar } from "@/components/layout/TopBar";
 import "./globals.css";
 
@@ -15,6 +16,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <div className="min-h-screen bg-[var(--bg-primary)]">
           <Sidebar />
           <main className="min-h-screen md:ml-[232px]">
+            <LiveTickerBar />
             <TopBar />
             <div className="p-2 md:p-3">{children}</div>
           </main>

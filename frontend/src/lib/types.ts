@@ -19,6 +19,33 @@ export type Quote = {
 };
 
 export type Bar = { date: string; open: number; high: number; low: number; close: number; volume: number };
+export type RealtimeQuote = {
+  type: "quote";
+  ticker: string;
+  price: number;
+  change: number;
+  change_pct: number;
+  volume: number;
+  bid?: number | null;
+  ask?: number | null;
+  timestamp: string;
+  provider?: string;
+  source?: string;
+  delayed?: boolean;
+  stale?: boolean;
+  signal?: string | null;
+  composite_score?: number | null;
+};
+
+export type MarketStatus = {
+  is_open: boolean;
+  status: "OPEN" | "PRE_MARKET" | "AFTER_HOURS" | "CLOSED";
+  next_open?: string | null;
+  next_close?: string | null;
+  message: string;
+  timestamp: string;
+};
+
 export type Signals = {
   composite_score: number;
   buy_prob: number;

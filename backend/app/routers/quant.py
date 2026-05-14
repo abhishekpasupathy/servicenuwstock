@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from app.cache import cache_set
 from app.services.data_fetcher import bars_to_frame, get_ohlcv, get_quote
 from app.services.monte_carlo import run_monte_carlo
 from app.services.quant_engine import compute_all_indicators
@@ -19,7 +20,9 @@ async def indicators(ticker: str):
 async def signals(ticker: str):
     bars = await get_ohlcv(ticker, "1y", "1d")
     quote = await get_quote(ticker)
-    return generate_signals(compute_all_indicators(bars_to_frame(bars)), quote["price"])
+    payload = generate_signals(compute_all_indicators(bars_to_frame(bars)), quote["price"])
+    await cache_set(f"signals:{ticker.upper()}", payload, 300)
+    return payload
 
 
 @router.get("/analytics/{ticker}")

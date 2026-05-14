@@ -200,7 +200,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return fetchJson(path, init) as Promise<T>;
 }
 
-export function useApi<T>(path: string, refreshInterval = 60000) {
+export function useApi<T>(path: string, refreshInterval = 0) {
   return useSWR<T>(path, api, {
     refreshInterval,
     revalidateOnFocus: false,

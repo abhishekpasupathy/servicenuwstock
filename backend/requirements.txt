@@ -16,3 +16,4 @@ httpx
 python-dotenv
 slowapi
 psycopg2-binary
+websockets>=12.0
