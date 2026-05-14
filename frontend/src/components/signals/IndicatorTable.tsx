@@ -4,8 +4,8 @@ export function IndicatorTable({ signals }: { signals?: Signals }) {
   const rows = Object.entries(signals?.indicator_breakdown ?? {});
   return (
     <div className="terminal-card overflow-hidden">
-      <table className="w-full text-sm">
-        <thead className="bg-[var(--bg-tertiary)] text-xs uppercase text-[var(--text-muted)]">
+      <table className="terminal-table w-full text-sm">
+        <thead>
           <tr><th className="p-3 text-left">Indicator</th><th>Raw Score</th><th>Weight</th><th>Contribution</th><th>Signal</th></tr>
         </thead>
         <tbody>

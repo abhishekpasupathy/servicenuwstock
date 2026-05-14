@@ -9,26 +9,29 @@ export function PriceChart({ bars = [], height = 420 }: { bars?: Bar[]; height?:
   useEffect(() => {
     if (!ref.current || bars.length === 0) return;
     const chart = createChart(ref.current, {
-      layout: { background: { type: ColorType.Solid, color: "#0d1220" }, textColor: "#8899aa" },
-      grid: { vertLines: { color: "#1a2535" }, horzLines: { color: "#1a2535" } },
-      crosshair: { mode: CrosshairMode.Normal, vertLine: { color: "#556677" }, horzLine: { color: "#556677" } },
-      rightPriceScale: { borderColor: "#1a2535" },
-      timeScale: { borderColor: "#1a2535", timeVisible: true, secondsVisible: false },
+      layout: { background: { type: ColorType.Solid, color: "#07090b" }, textColor: "#9ba39b", fontFamily: "Menlo, Consolas, monospace" },
+      grid: { vertLines: { color: "#151b20" }, horzLines: { color: "#202830" } },
+      crosshair: { mode: CrosshairMode.Normal, vertLine: { color: "#ffb000", labelBackgroundColor: "#111" }, horzLine: { color: "#ffb000", labelBackgroundColor: "#111" } },
+      rightPriceScale: { borderColor: "#263038" },
+      timeScale: { borderColor: "#263038", timeVisible: true, secondsVisible: false },
       width: ref.current.clientWidth,
       height,
     });
-    const candle = chart.addCandlestickSeries({ upColor: "#00d4aa", downColor: "#ff4d6d", borderUpColor: "#00d4aa", borderDownColor: "#ff4d6d", wickUpColor: "#00d4aa", wickDownColor: "#ff4d6d" });
+    const candle = chart.addCandlestickSeries({ upColor: "#26d07c", downColor: "#ff4f45", borderUpColor: "#26d07c", borderDownColor: "#ff4f45", wickUpColor: "#26d07c", wickDownColor: "#ff4f45" });
     candle.setData(bars.map((b) => ({ time: b.date, open: b.open, high: b.high, low: b.low, close: b.close })));
     const sma = (n: number) => bars.map((b, i) => ({ time: b.date, value: bars.slice(Math.max(0, i - n + 1), i + 1).reduce((s, x) => s + x.close, 0) / Math.min(i + 1, n) }));
-    chart.addLineSeries({ color: "#f0c040", lineWidth: 1 }).setData(sma(50));
-    chart.addLineSeries({ color: "#a855f7", lineWidth: 1 }).setData(sma(200));
-    const vol = chart.addHistogramSeries({ color: "#4488ff", priceFormat: { type: "volume" }, priceScaleId: "volume" });
-    vol.setData(bars.map((b) => ({ time: b.date, value: b.volume, color: b.close >= b.open ? "#00d4aa55" : "#ff4d6d55" })));
+    chart.addLineSeries({ color: "#ffb000", lineWidth: 1, priceLineVisible: false }).setData(sma(50));
+    chart.addLineSeries({ color: "#46a6ff", lineWidth: 1, priceLineVisible: false }).setData(sma(200));
+    const vol = chart.addHistogramSeries({ color: "#46a6ff", priceFormat: { type: "volume" }, priceScaleId: "volume" });
+    vol.setData(bars.map((b) => ({ time: b.date, value: b.volume, color: b.close >= b.open ? "#26d07c55" : "#ff4f4555" })));
     chart.priceScale("volume").applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
     chart.timeScale().fitContent();
     const ro = new ResizeObserver(() => chart.applyOptions({ width: ref.current?.clientWidth ?? 0 }));
     ro.observe(ref.current);
     return () => { ro.disconnect(); chart.remove(); };
   }, [bars, height]);
+  if (!bars.length) {
+    return <div className="grid w-full place-items-center font-mono text-xs text-[var(--text-muted)]" style={{ height }}>NO PRICE DATA</div>;
+  }
   return <div ref={ref} className="w-full" style={{ height }} />;
 }

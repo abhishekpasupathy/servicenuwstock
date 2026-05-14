@@ -4,28 +4,63 @@ import numpy as np
 import pandas as pd
 from scipy.signal import find_peaks
 
-try:
-    import pandas_ta as ta  # noqa: F401
-except Exception:  # pragma: no cover
-    ta = None
-
 
 def f(value: Any, default: float = 0.0) -> float:
     try:
         if value is None or pd.isna(value):
             return default
-        return float(value)
+        result = float(value)
+        return result if np.isfinite(result) else default
     except Exception:
         return default
 
 
-def col(row: Any, prefix: str, default: float = 0.0) -> float:
-    if not hasattr(row, "items"):
-        return default
-    for key, value in row.items():
-        if str(key).startswith(prefix):
-            return f(value, default)
-    return default
+def _series(value: pd.Series, default: float = 0.0) -> pd.Series:
+    return pd.to_numeric(value, errors="coerce").replace([np.inf, -np.inf], np.nan).fillna(default)
+
+
+def _safe_last(value: pd.Series, default: float = 0.0) -> float:
+    return f(value.iloc[-1] if len(value) else default, default)
+
+
+def _rsi(close: pd.Series, length: int = 14) -> pd.Series:
+    delta = close.diff()
+    gain = delta.clip(lower=0).ewm(alpha=1 / length, adjust=False).mean()
+    loss = (-delta.clip(upper=0)).ewm(alpha=1 / length, adjust=False).mean()
+    rs = gain / loss.replace(0, np.nan)
+    return (100 - (100 / (1 + rs))).fillna(50)
+
+
+def _macd(close: pd.Series) -> tuple[pd.Series, pd.Series, pd.Series]:
+    line = close.ewm(span=12, adjust=False).mean() - close.ewm(span=26, adjust=False).mean()
+    signal = line.ewm(span=9, adjust=False).mean()
+    return line, signal, line - signal
+
+
+def _true_range(df: pd.DataFrame) -> pd.Series:
+    prev_close = df["close"].shift(1)
+    ranges = pd.concat(
+        [
+            df["high"] - df["low"],
+            (df["high"] - prev_close).abs(),
+            (df["low"] - prev_close).abs(),
+        ],
+        axis=1,
+    )
+    return ranges.max(axis=1)
+
+
+def _adx(df: pd.DataFrame, length: int = 14) -> tuple[pd.Series, pd.Series, pd.Series]:
+    high, low = df["high"], df["low"]
+    up_move = high.diff()
+    down_move = -low.diff()
+    plus_dm = pd.Series(np.where((up_move > down_move) & (up_move > 0), up_move, 0), index=df.index)
+    minus_dm = pd.Series(np.where((down_move > up_move) & (down_move > 0), down_move, 0), index=df.index)
+    atr = _true_range(df).ewm(alpha=1 / length, adjust=False).mean().replace(0, np.nan)
+    plus_di = 100 * plus_dm.ewm(alpha=1 / length, adjust=False).mean() / atr
+    minus_di = 100 * minus_dm.ewm(alpha=1 / length, adjust=False).mean() / atr
+    dx = ((plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, np.nan)) * 100
+    return dx.ewm(alpha=1 / length, adjust=False).mean().fillna(0), plus_di.fillna(0), minus_di.fillna(0)
 
 
 def detect_cross(a: pd.Series, b: pd.Series, direction: str) -> bool:
@@ -38,7 +73,8 @@ def detect_cross(a: pd.Series, b: pd.Series, direction: str) -> bool:
 
 def compute_vwap(df: pd.DataFrame) -> pd.Series:
     typical = (df["high"] + df["low"] + df["close"]) / 3
-    return (typical * df["volume"]).cumsum() / df["volume"].replace(0, np.nan).cumsum()
+    volume_sum = df["volume"].replace(0, np.nan).cumsum()
+    return ((typical * df["volume"]).cumsum() / volume_sum).ffill().fillna(df["close"])
 
 
 def signal_range(value: float, low: float, high: float) -> str:
@@ -49,9 +85,9 @@ def signal_range(value: float, low: float, high: float) -> str:
     return "neutral"
 
 
-def classify_regime(adx: pd.DataFrame, ema_50: pd.Series, ema_200: pd.Series, rsi: pd.Series) -> str:
-    adx_val = f(adx.iloc[-1].get("ADX_14") if isinstance(adx, pd.DataFrame) else np.nan)
-    up = f(ema_50.iloc[-1]) >= f(ema_200.iloc[-1])
+def classify_regime(adx: pd.Series, ema_50: pd.Series, ema_200: pd.Series, rsi: pd.Series) -> str:
+    adx_val = _safe_last(adx)
+    up = _safe_last(ema_50) >= _safe_last(ema_200)
     strong = adx_val >= 25
     if up and strong:
         return "STRONG_UPTREND"
@@ -59,97 +95,94 @@ def classify_regime(adx: pd.DataFrame, ema_50: pd.Series, ema_200: pd.Series, rs
         return "WEAK_UPTREND"
     if not up and strong:
         return "STRONG_DOWNTREND"
-    if f(rsi.iloc[-1], 50) < 45:
+    if _safe_last(rsi, 50) < 45:
         return "WEAK_DOWNTREND"
     return "RANGING"
 
 
 def compute_all_indicators(df: pd.DataFrame) -> dict[str, Any]:
     df = df.copy().sort_values("date").reset_index(drop=True)
+    for name in ["open", "high", "low", "close", "volume"]:
+        df[name] = _series(df[name])
+    df = df[(df["close"] > 0) & (df["high"] > 0) & (df["low"] > 0)].reset_index(drop=True)
     if len(df) < 60:
-        raise ValueError("At least 60 bars are required")
+        raise ValueError("At least 60 valid bars are required")
 
-    # SMA 20, 50, 200: simple averages; price above SMA200 implies long-term uptrend.
-    sma_20, sma_50, sma_200 = df.ta.sma(20), df.ta.sma(50), df.ta.sma(200)
-    # EMA 12, 26, 50, 200: exponential averages react faster to fresh price action.
-    ema_12, ema_26, ema_50, ema_200 = df.ta.ema(12), df.ta.ema(26), df.ta.ema(50), df.ta.ema(200)
-    # Golden/death crosses identify medium-term regime shifts against long-term trend.
+    close = df["close"]
+    sma_20, sma_50, sma_200 = close.rolling(20, min_periods=1).mean(), close.rolling(50, min_periods=1).mean(), close.rolling(200, min_periods=1).mean()
+    ema_12, ema_26 = close.ewm(span=12, adjust=False).mean(), close.ewm(span=26, adjust=False).mean()
+    ema_50, ema_200 = close.ewm(span=50, adjust=False).mean(), close.ewm(span=200, adjust=False).mean()
     golden_cross = detect_cross(ema_50, ema_200, "up")
     death_cross = detect_cross(ema_50, ema_200, "down")
-    # VWAP: volume-weighted average price, often used as an institutional anchor.
     vwap = compute_vwap(df)
-    # RSI(14): momentum oscillator; below 30 oversold, above 70 overbought.
-    rsi = df.ta.rsi(14)
-    # MACD(12,26,9): trend-following momentum; positive histogram shows building upside momentum.
-    macd = df.ta.macd(12, 26, 9)
-    # Stochastic(14,3,3): close position inside recent range; extreme readings flag stretched moves.
-    stoch = df.ta.stoch(14, 3, 3)
-    # Williams %R(14): inverted momentum range oscillator; below -80 is oversold.
-    willr = df.ta.willr(14)
-    # ROC(10): ten-day rate of change; positive means recent acceleration upward.
-    roc = df.ta.roc(10)
-    # Bollinger Bands(20,2): volatility envelope; %B locates price within the band.
-    bbands = df.ta.bbands(20, 2)
-    # ATR(14): average true range; high ATR means stops need more room.
-    atr = df.ta.atr(14)
-    # Historical Volatility: annualized 20-day log-return volatility.
-    log_returns = np.log(df["close"] / df["close"].shift(1))
-    hv_20 = log_returns.rolling(20).std() * np.sqrt(252) * 100
-    # Keltner Channels: ATR-based bands that respond differently than standard-deviation bands.
-    kc = df.ta.kc(20, 2)
-    # OBV: on-balance volume; rising OBV confirms accumulation.
-    obv = df.ta.obv()
-    # CMF: Chaikin Money Flow; positive values imply buying pressure.
-    cmf = df.ta.cmf(20)
-    # Volume ratio compares current volume to 20-day average; >1.5x is unusual activity.
-    vol_ratio = df["volume"] / df["volume"].rolling(20).mean()
-    # ADX(14): trend strength; use +DI and -DI for direction.
-    adx = df.ta.adx(14)
+    rsi = _rsi(close)
+    macd_line, macd_signal, macd_hist = _macd(close)
+
+    lowest_low = df["low"].rolling(14, min_periods=1).min()
+    highest_high = df["high"].rolling(14, min_periods=1).max()
+    range_14 = (highest_high - lowest_low).replace(0, np.nan)
+    stoch_k = ((close - lowest_low) / range_14 * 100).fillna(50)
+    stoch_d = stoch_k.rolling(3, min_periods=1).mean()
+    willr = (((highest_high - close) / range_14) * -100).fillna(-50)
+    roc = close.pct_change(10).fillna(0) * 100
+
+    bb_middle = close.rolling(20, min_periods=1).mean()
+    bb_std = close.rolling(20, min_periods=2).std().fillna(0)
+    bb_upper = bb_middle + 2 * bb_std
+    bb_lower = bb_middle - 2 * bb_std
+    bb_width = (bb_upper - bb_lower).replace(0, np.nan)
+    bb_pct = ((close - bb_lower) / bb_width).clip(0, 1).fillna(0.5)
+    bb_bandwidth = (bb_width / bb_middle.replace(0, np.nan) * 100).fillna(0)
+
+    atr = _true_range(df).ewm(alpha=1 / 14, adjust=False).mean().fillna(0)
+    log_returns = np.log(close / close.shift(1)).replace([np.inf, -np.inf], np.nan)
+    hv_20 = log_returns.rolling(20, min_periods=2).std() * np.sqrt(252) * 100
+    obv = (np.sign(close.diff()).fillna(0) * df["volume"]).cumsum()
+    money_flow_multiplier = (((close - df["low"]) - (df["high"] - close)) / (df["high"] - df["low"]).replace(0, np.nan)).fillna(0)
+    cmf = (money_flow_multiplier * df["volume"]).rolling(20, min_periods=1).sum() / df["volume"].rolling(20, min_periods=1).sum().replace(0, np.nan)
+    volume_ratio = df["volume"] / df["volume"].rolling(20, min_periods=1).mean().replace(0, np.nan)
+    adx, plus_di, minus_di = _adx(df)
     regime = classify_regime(adx, ema_50, ema_200, rsi)
 
-    peaks, _ = find_peaks(df["close"].values, distance=10, prominence=max(df["close"].std() * 0.15, 1))
-    troughs, _ = find_peaks(-df["close"].values, distance=10, prominence=max(df["close"].std() * 0.15, 1))
-    support = [round(float(x), 2) for x in df["close"].values[troughs[-3:]]] or [80.0, 85.0]
-    resistance = [round(float(x), 2) for x in df["close"].values[peaks[-3:]]] or [90.0, 95.0]
-
-    macd_row = macd.iloc[-1] if isinstance(macd, pd.DataFrame) else {}
-    stoch_row = stoch.iloc[-1] if isinstance(stoch, pd.DataFrame) else {}
-    bb_row = bbands.iloc[-1] if isinstance(bbands, pd.DataFrame) else {}
-    adx_row = adx.iloc[-1] if isinstance(adx, pd.DataFrame) else {}
-    last_close = f(df["close"].iloc[-1], 85)
-    atr_val = f(atr.iloc[-1])
+    prominence = max(float(close.std() or 0) * 0.15, max(float(close.iloc[-1]) * 0.005, 0.5))
+    peaks, _ = find_peaks(close.values, distance=10, prominence=prominence)
+    troughs, _ = find_peaks(-close.values, distance=10, prominence=prominence)
+    last_close = _safe_last(close, 1)
+    support = [round(float(x), 2) for x in close.values[troughs[-3:]]] or [round(last_close * 0.94, 2), round(last_close * 0.9, 2)]
+    resistance = [round(float(x), 2) for x in close.values[peaks[-3:]]] or [round(last_close * 1.06, 2), round(last_close * 1.1, 2)]
+    atr_val = _safe_last(atr)
 
     return {
-        "sma": {"20": f(sma_20.iloc[-1]), "50": f(sma_50.iloc[-1]), "200": f(sma_200.iloc[-1])},
-        "ema": {"12": f(ema_12.iloc[-1]), "26": f(ema_26.iloc[-1]), "50": f(ema_50.iloc[-1]), "200": f(ema_200.iloc[-1])},
+        "sma": {"20": _safe_last(sma_20), "50": _safe_last(sma_50), "200": _safe_last(sma_200)},
+        "ema": {"12": _safe_last(ema_12), "26": _safe_last(ema_26), "50": _safe_last(ema_50), "200": _safe_last(ema_200)},
         "golden_cross": golden_cross,
         "death_cross": death_cross,
-        "vwap": f(vwap.iloc[-1]),
-        "rsi": {"value": f(rsi.iloc[-1], 50), "signal": signal_range(f(rsi.iloc[-1], 50), 30, 70)},
+        "vwap": _safe_last(vwap),
+        "rsi": {"value": _safe_last(rsi, 50), "signal": signal_range(_safe_last(rsi, 50), 30, 70)},
         "macd": {
-            "macd": f(macd_row.get("MACD_12_26_9")),
-            "line": f(macd_row.get("MACD_12_26_9")),
-            "signal_line": f(macd_row.get("MACDs_12_26_9")),
-            "histogram": f(macd_row.get("MACDh_12_26_9")),
-            "signal": "bullish" if f(macd_row.get("MACDh_12_26_9")) > 0 else "bearish",
+            "macd": _safe_last(macd_line),
+            "line": _safe_last(macd_line),
+            "signal_line": _safe_last(macd_signal),
+            "histogram": _safe_last(macd_hist),
+            "signal": "bullish" if _safe_last(macd_hist) > 0 else "bearish",
         },
-        "stoch": {"k": f(stoch_row.get("STOCHk_14_3_3")), "d": f(stoch_row.get("STOCHd_14_3_3")), "signal": signal_range(f(stoch_row.get("STOCHk_14_3_3"), 50), 20, 80)},
-        "willr": {"value": f(willr.iloc[-1], -50), "signal": "oversold" if f(willr.iloc[-1], -50) < -80 else "overbought" if f(willr.iloc[-1], -50) > -20 else "neutral"},
-        "roc": {"value": f(roc.iloc[-1]), "signal": "bullish" if f(roc.iloc[-1]) > 0 else "bearish"},
+        "stoch": {"k": _safe_last(stoch_k, 50), "d": _safe_last(stoch_d, 50), "signal": signal_range(_safe_last(stoch_k, 50), 20, 80)},
+        "willr": {"value": _safe_last(willr, -50), "signal": "oversold" if _safe_last(willr, -50) < -80 else "overbought" if _safe_last(willr, -50) > -20 else "neutral"},
+        "roc": {"value": _safe_last(roc), "signal": "bullish" if _safe_last(roc) > 0 else "bearish"},
         "bbands": {
-            "upper": col(bb_row, "BBU_20"),
-            "middle": col(bb_row, "BBM_20"),
-            "lower": col(bb_row, "BBL_20"),
-            "pct_b": col(bb_row, "BBP_20", 0.5),
-            "bandwidth": col(bb_row, "BBB_20"),
+            "upper": _safe_last(bb_upper),
+            "middle": _safe_last(bb_middle),
+            "lower": _safe_last(bb_lower),
+            "pct_b": _safe_last(bb_pct, 0.5),
+            "bandwidth": _safe_last(bb_bandwidth),
         },
-        "atr": {"value": atr_val, "atr_pct": atr_val / last_close * 100},
-        "hv_20": f(hv_20.iloc[-1]),
-        "keltner": {"available": kc is not None},
-        "obv": {"value": f(obv.iloc[-1]), "trend": "rising" if f(obv.iloc[-1]) > f(obv.iloc[-10]) else "falling"},
-        "cmf": {"value": f(cmf.iloc[-1]), "signal": "bullish" if f(cmf.iloc[-1]) > 0 else "bearish"},
-        "volume_ratio": f(vol_ratio.iloc[-1], 1),
-        "adx": {"value": f(adx_row.get("ADX_14")), "plus_di": f(adx_row.get("DMP_14")), "minus_di": f(adx_row.get("DMN_14"))},
+        "atr": {"value": atr_val, "atr_pct": atr_val / max(last_close, 0.01) * 100},
+        "hv_20": _safe_last(hv_20),
+        "keltner": {"available": True},
+        "obv": {"value": _safe_last(obv), "trend": "rising" if _safe_last(obv) > f(obv.iloc[-10] if len(obv) >= 10 else obv.iloc[0]) else "falling"},
+        "cmf": {"value": _safe_last(cmf), "signal": "bullish" if _safe_last(cmf) > 0 else "bearish"},
+        "volume_ratio": _safe_last(volume_ratio, 1),
+        "adx": {"value": _safe_last(adx), "plus_di": _safe_last(plus_di), "minus_di": _safe_last(minus_di)},
         "regime": regime,
         "support": support,
         "resistance": resistance,

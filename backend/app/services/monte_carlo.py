@@ -5,11 +5,18 @@ import pandas as pd
 
 
 def run_monte_carlo(df: pd.DataFrame, simulations: int = 2000, days: int = 90) -> dict[str, Any]:
-    close = df["close"].astype(float)
+    close = pd.to_numeric(df["close"], errors="coerce").replace([np.inf, -np.inf], np.nan).dropna()
+    close = close[close > 0]
+    if len(close) < 3:
+        close = pd.Series([100.0, 100.5, 101.0])
     current = float(close.iloc[-1])
     returns = np.log(close / close.shift(1)).dropna().tail(252)
     mu = float(returns.mean() * 252)
     sigma = float(returns.std() * np.sqrt(252))
+    if not np.isfinite(mu):
+        mu = 0.0
+    if not np.isfinite(sigma) or sigma <= 0:
+        sigma = 0.18
     dt = 1 / 252
     rng = np.random.default_rng(42)
     shocks = rng.normal((mu - 0.5 * sigma**2) * dt, sigma * np.sqrt(dt), size=(simulations, days))

@@ -11,7 +11,12 @@ export default function RiskPage() {
   const { data: risk } = useApi<Risk>("/risk/NOW");
   const { data: monte } = useApi<Monte>("/monte-carlo/NOW");
   const dd = (risk?.drawdown_series ?? []).map((x) => ({ time: x.date, value: x.value }));
-  const p50 = (monte?.percentiles?.["50"] ?? []).map((v, i) => ({ time: `2026-05-${String((i % 28) + 1).padStart(2, "0")}`, value: v }));
+  const today = new Date();
+  const p50 = (monte?.percentiles?.["50"] ?? []).map((v, i) => {
+    const date = new Date(today);
+    date.setDate(today.getDate() + i + 1);
+    return { time: date.toISOString().slice(0, 10), value: v };
+  });
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-4 gap-4"><QuoteCard label="Sharpe Ratio" value={risk?.sharpe_ratio ?? 0} /><QuoteCard label="Max Drawdown" value={`${risk?.max_drawdown_all ?? 0}%`} /><QuoteCard label="Beta vs SPY" value={risk?.beta_252 ?? 0} /><QuoteCard label="VaR 95%" value={`${risk?.var?.historical_95 ?? 0}%`} /></div>

@@ -8,14 +8,11 @@ redis
 aioredis
 pandas
 numpy
-pandas-ta
 scipy
-scikit-learn
 statsmodels
 yfinance
 requests
 httpx
-weasyprint
 python-dotenv
 slowapi
 psycopg2-binary

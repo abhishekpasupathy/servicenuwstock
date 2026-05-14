@@ -10,10 +10,12 @@ import yfinance as yf
 
 from app.cache import cache_get, cache_set
 from app.config import get_settings
+from app.core.logging import get_logger
 
 
 settings = get_settings()
 DEMO_PRICE = 85.0
+logger = get_logger(__name__)
 
 
 def _ticker(ticker: str) -> str:
@@ -39,6 +41,14 @@ def _int(value: Any, default: int | None = None) -> int | None:
         return int(value)
     except Exception:
         return default
+
+
+def _synthetic_anchor(ticker: str) -> tuple[float, int, int]:
+    seed = sum(ord(char) for char in ticker)
+    price = 70.0 + (seed % 95)
+    volume = 700_000 + (seed % 1400) * 1000
+    market_cap = int(price * (150_000_000 + (seed % 900) * 1_000_000))
+    return price, volume, market_cap
 
 
 async def _retry(fn, retries: int = 3):
@@ -80,14 +90,15 @@ async def _alpha_daily(ticker: str) -> pd.DataFrame:
     return pd.DataFrame(rows).sort_values("date")
 
 
-def _demo_bars(days: int = 520) -> list[dict[str, Any]]:
+def _demo_bars(ticker: str = "NOW", days: int = 520) -> list[dict[str, Any]]:
     start = datetime.now(UTC).date() - timedelta(days=days)
+    base_price, base_volume, _ = _synthetic_anchor(ticker)
     bars: list[dict[str, Any]] = []
     for i in range(days):
         if i % 7 in (5, 6):
             continue
         wave = math.sin(i / 18) * 1.4 + math.sin(i / 55) * 2.4
-        close = max(20, DEMO_PRICE + wave)
+        close = max(20, base_price + wave)
         open_ = close * (1 + math.sin(i) * 0.004)
         high = max(open_, close) * 1.01
         low = min(open_, close) * 0.99
@@ -98,7 +109,7 @@ def _demo_bars(days: int = 520) -> list[dict[str, Any]]:
                 "high": round(high, 2),
                 "low": round(low, 2),
                 "close": round(close, 2),
-                "volume": int(1_350_000 + (math.sin(i / 9) + 1) * 450_000),
+                "volume": int(base_volume * (0.72 + (math.sin(i / 9) + 1) * 0.28)),
             }
         )
     return bars
@@ -133,7 +144,8 @@ async def get_ohlcv(ticker: str, period: str = "1y", interval: str = "1d") -> li
         await cache_set(key, bars, ttl)
         await cache_set(stale_key, bars, 86400 * 7)
         return bars
-    except Exception:
+    except Exception as exc:
+        logger.warning("yfinance ohlcv request failed for %s: %s", ticker, exc)
         try:
             frame = await _alpha_daily(ticker)
             if period != "max":
@@ -145,11 +157,12 @@ async def get_ohlcv(ticker: str, period: str = "1y", interval: str = "1d") -> li
             await cache_set(key, bars, ttl)
             await cache_set(stale_key, bars, 86400 * 7)
             return bars
-        except Exception:
+        except Exception as alpha_exc:
+            logger.warning("alpha vantage ohlcv request failed for %s: %s", ticker, alpha_exc)
             stale = await cache_get(stale_key)
             if stale:
                 return [{**bar, "source": "cache", "stale": True} for bar in stale]
-            return [{**bar, "source": "demo", "stale": True} for bar in _demo_bars()]
+            return [{**bar, "source": "synthetic", "stale": True} for bar in _demo_bars(ticker)]
 
 
 async def get_quote(ticker: str) -> dict[str, Any]:
@@ -184,7 +197,8 @@ async def get_quote(ticker: str) -> dict[str, Any]:
         await cache_set(key, quote, settings.cache_quote_ttl)
         await cache_set(stale_key, quote, 86400 * 7)
         return quote
-    except Exception:
+    except Exception as exc:
+        logger.warning("quote request failed for %s: %s", ticker, exc)
         stale = await cache_get(stale_key)
         if stale:
             return {**stale, "source": "cache", "stale": True}
@@ -193,6 +207,7 @@ async def get_quote(ticker: str) -> dict[str, Any]:
         prev = bars[-2]["close"]
         price = float(last["close"])
         recent = bars[-252:] if len(bars) >= 252 else bars
+        _, _, synthetic_market_cap = _synthetic_anchor(ticker)
         return {
             "ticker": ticker,
             "price": price,
@@ -200,7 +215,7 @@ async def get_quote(ticker: str) -> dict[str, Any]:
             "change_pct": round((price - prev) / prev * 100, 2),
             "volume": last["volume"],
             "avg_volume": int(np.mean([b["volume"] for b in bars[-20:]])),
-            "market_cap": 17_500_000_000,
+            "market_cap": synthetic_market_cap,
             "pe_ratio": 38.0,
             "week_52_high": round(max(float(b["high"]) for b in recent), 2),
             "week_52_low": round(min(float(b["low"]) for b in recent), 2),
@@ -208,7 +223,7 @@ async def get_quote(ticker: str) -> dict[str, Any]:
             "day_low": round(min(float(last["low"]), price), 2),
             "prev_close": prev,
             "open": last["open"],
-            "source": "demo",
+            "source": "synthetic",
             "stale": True,
             "timestamp": datetime.now(UTC).isoformat(),
         }
@@ -238,7 +253,9 @@ async def get_fundamentals(ticker: str) -> dict[str, Any]:
             "source": "yfinance",
             "timestamp": datetime.now(UTC).isoformat(),
         }
-    except Exception:
+    except Exception as exc:
+        logger.warning("fundamentals request failed for %s: %s", ticker, exc)
+        _, _, synthetic_market_cap = _synthetic_anchor(ticker)
         data = {
             "ticker": ticker,
             "pe": 38.0,
@@ -252,7 +269,8 @@ async def get_fundamentals(ticker: str) -> dict[str, Any]:
             "beta": 1.05,
             "sector": "Technology",
             "employees": 26000,
-            "source": "demo",
+            "market_cap": synthetic_market_cap,
+            "source": "synthetic",
             "stale": True,
             "timestamp": datetime.now(UTC).isoformat(),
         }

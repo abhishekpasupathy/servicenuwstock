@@ -12,7 +12,7 @@ export default function InsightsPage() {
       <section className="terminal-card p-6">
         <div className="text-3xl font-semibold text-[var(--green)]">{data?.verdict ?? "Loading analysis"}</div>
         <div className="mt-2 text-sm text-[var(--text-muted)]">Confidence {data?.confidence ?? 0}% | Updated {data?.generated_at ? new Date(data.generated_at).toLocaleTimeString() : "--"}</div>
-        <button onClick={() => mutate()} className="mt-4 rounded border border-[var(--border)] px-3 py-2 text-sm hover:bg-[var(--bg-hover)]">Refresh Analysis</button>
+        <button onClick={() => mutate()} className="terminal-button mt-4">Refresh Analysis</button>
       </section>
       <InsightPanel title="Plain English Summary"><p className="text-base leading-8 text-[var(--text-primary)]">{data?.plain_english_summary}</p></InsightPanel>
       <div className="grid grid-cols-2 gap-4">
@@ -21,7 +21,7 @@ export default function InsightsPage() {
       </div>
       <InsightPanel title="Key Price Levels"><div className="grid grid-cols-4 gap-3 font-mono">{Object.entries(data?.key_levels ?? {}).map(([k, v]) => <div key={k}>{k}: ${Number(v).toFixed(2)}</div>)}</div></InsightPanel>
       <InsightPanel title="Monte Carlo Summary"><p className="leading-7 text-[var(--text-muted)]">{data?.monte_carlo_narrative}</p></InsightPanel>
-      <a className="inline-block rounded bg-[var(--green)] px-4 py-2 text-sm text-[var(--bg-primary)]" href={`${API_BASE}/insights/NOW/pdf`}>Export as PDF</a>
+      <a className="terminal-button inline-block" href={`${API_BASE}/insights/NOW/pdf`}>Export PDF</a>
       <details className="terminal-card p-4"><summary>Show Technical Details</summary><p className="mt-3 text-sm text-[var(--text-muted)]">{data?.technical_summary}</p></details>
     </div>
   );

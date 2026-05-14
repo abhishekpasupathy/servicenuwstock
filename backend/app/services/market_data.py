@@ -32,9 +32,9 @@ T = TypeVar("T")
 FALLBACK_ANCHORS: dict[str, dict[str, Any]] = {
     "NOW": {
         "name": "ServiceNow Inc.",
-        "price": 85.0,
-        "market_cap": 17_500_000_000,
-        "volume": 1_550_000,
+        "price": 87.0,
+        "market_cap": 90_000_000_000,
+        "volume": 20_000_000,
         "currency": "USD",
         "exchange": "Sample",
         "website": "https://www.servicenow.com",

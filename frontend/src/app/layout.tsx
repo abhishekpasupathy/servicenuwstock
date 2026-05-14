@@ -4,8 +4,8 @@ import { TopBar } from "@/components/layout/TopBar";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "NOW Terminal",
-  description: "Free ServiceNow stock decision support terminal",
+  title: "DadStock Bloomberg Terminal",
+  description: "Institutional-style market analytics terminal",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -14,9 +14,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body>
         <div className="min-h-screen bg-[var(--bg-primary)]">
           <Sidebar />
-          <main className="ml-[220px] min-h-screen">
+          <main className="min-h-screen md:ml-[232px]">
             <TopBar />
-            <div className="p-4">{children}</div>
+            <div className="p-2 md:p-3">{children}</div>
           </main>
         </div>
       </body>

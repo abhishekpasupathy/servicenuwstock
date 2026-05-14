@@ -6,6 +6,12 @@ import pandas as pd
 
 def run_backtest(df: pd.DataFrame, strategy: str = "composite", initial_capital: float = 10000) -> dict[str, Any]:
     data = df.copy().sort_values("date").reset_index(drop=True)
+    initial_capital = max(float(initial_capital or 10000), 1)
+    data["close"] = pd.to_numeric(data["close"], errors="coerce")
+    data = data.dropna(subset=["close"])
+    data = data[data["close"] > 0].reset_index(drop=True)
+    if len(data) < 60:
+        raise ValueError("At least 60 valid bars are required for a backtest")
     close = data["close"].astype(float)
     ret = close.pct_change().fillna(0)
     sma20, sma50 = close.rolling(20).mean(), close.rolling(50).mean()

@@ -68,14 +68,13 @@ def create_app() -> FastAPI:
             content={"error": str(exc), "code": "INTERNAL_ERROR", "request_id": request.headers.get("x-request-id", "")},
         )
 
-    app.include_router(health.router, prefix=settings.api_prefix)
-    app.include_router(market.router, prefix=settings.api_prefix)
-    app.include_router(quant.router, prefix=settings.api_prefix)
-    app.include_router(risk.router, prefix=settings.api_prefix)
-    app.include_router(insights.router, prefix=settings.api_prefix)
-    app.include_router(portfolio.router, prefix=settings.api_prefix)
-    app.include_router(backtest.router, prefix=settings.api_prefix)
-    app.include_router(alerts.router, prefix=settings.api_prefix)
+    routers = (health.router, market.router, quant.router, risk.router, insights.router, portfolio.router, backtest.router, alerts.router)
+    for router in routers:
+        app.include_router(router, prefix=settings.api_prefix)
+
+    if settings.api_prefix.rstrip("/") != "/api/v1":
+        for router in routers:
+            app.include_router(router, prefix="/api/v1")
     return app
 
 
