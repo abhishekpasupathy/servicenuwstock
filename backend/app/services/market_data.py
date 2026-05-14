@@ -29,6 +29,21 @@ FALLBACK_CACHE_TTL_SECONDS = settings.market_fallback_cache_ttl_seconds
 RETRY_DELAYS_SECONDS = (0.6, 1.4, 2.8)
 T = TypeVar("T")
 
+FALLBACK_ANCHORS: dict[str, dict[str, Any]] = {
+    "NOW": {
+        "name": "ServiceNow Inc.",
+        "price": 85.0,
+        "market_cap": 17_500_000_000,
+        "volume": 1_550_000,
+        "currency": "USD",
+        "exchange": "Sample",
+        "website": "https://www.servicenow.com",
+        "sector": "Technology",
+        "industry": "Software - Application",
+        "country": "United States",
+    },
+}
+
 
 class MarketDataError(Exception):
     pass
@@ -105,6 +120,8 @@ def _ticker_info(ticker: str) -> dict[str, Any]:
 def _get_cached_response(cache_key: str, model_type: type[T]) -> T | None:
     cached = cache.get(cache_key)
     if isinstance(cached, model_type):
+        if _is_unusable_cached_fallback(cached):
+            return None
         return cached
 
     payload = persistent_cache.get(cache_key)
@@ -112,8 +129,41 @@ def _get_cached_response(cache_key: str, model_type: type[T]) -> T | None:
         return None
 
     response = model_type.model_validate_json(payload)  # type: ignore[attr-defined]
+    if _is_unusable_cached_fallback(response):
+        return None
     cache.set(cache_key, response)
     return response
+
+
+def _anchor_for(ticker: str) -> dict[str, Any]:
+    if ticker in FALLBACK_ANCHORS:
+        return FALLBACK_ANCHORS[ticker]
+
+    seed = sum(ord(char) for char in ticker)
+    return {
+        "name": f"{ticker} sample quote",
+        "price": 75.0 + (seed % 65),
+        "market_cap": None,
+        "volume": 750_000 + (seed % 900) * 1_000,
+        "currency": "USD",
+        "exchange": "Sample",
+        "website": None,
+        "sector": None,
+        "industry": None,
+        "country": None,
+    }
+
+
+def _is_unusable_cached_fallback(response: object) -> bool:
+    if not isinstance(response, QuoteResponse):
+        return False
+    if not response.is_degraded:
+        return False
+    anchor = FALLBACK_ANCHORS.get(response.ticker)
+    if anchor is None or response.price is None:
+        return False
+    anchor_price = float(anchor["price"])
+    return response.price < anchor_price * 0.55 or response.price > anchor_price * 1.45
 
 
 def _set_cached_response(cache_key: str, response: object, ttl_seconds: int) -> None:
@@ -164,14 +214,14 @@ def _build_profile_from_info(ticker: str, info: dict[str, Any]) -> ProfileRespon
 
 
 def _sample_profile(ticker: str, message: str) -> ProfileResponse:
-    name = "ServiceNow Inc." if ticker == "NOW" else f"{ticker} sample profile"
+    anchor = _anchor_for(ticker)
     return ProfileResponse(
         ticker=ticker,
-        name=name,
-        sector="Technology",
-        industry="Software - Application",
-        country="United States",
-        website="https://www.servicenow.com" if ticker == "NOW" else None,
+        name=anchor["name"],
+        sector=anchor["sector"],
+        industry=anchor["industry"],
+        country=anchor["country"],
+        website=anchor["website"],
         employees=None,
         business_summary=(
             "Sample company profile shown because the upstream market data provider "
@@ -185,22 +235,23 @@ def _sample_profile(ticker: str, message: str) -> ProfileResponse:
 
 
 def _sample_quote(ticker: str, message: str) -> QuoteResponse:
-    base_price = 734.25 if ticker == "NOW" else 100.0 + (sum(ord(char) for char in ticker) % 250)
-    previous_close = round(base_price * 0.992, 2)
+    anchor = _anchor_for(ticker)
+    base_price = float(anchor["price"])
+    previous_close = round(base_price * 0.997, 2)
     return QuoteResponse(
         ticker=ticker,
-        name="ServiceNow Inc." if ticker == "NOW" else f"{ticker} sample quote",
-        currency="USD",
-        exchange="Sample",
+        name=anchor["name"],
+        currency=anchor["currency"],
+        exchange=anchor["exchange"],
         price=round(base_price, 2),
         previous_close=previous_close,
-        open=round(previous_close * 1.002, 2),
-        day_high=round(base_price * 1.018, 2),
-        day_low=round(base_price * 0.982, 2),
-        volume=1_250_000 + (sum(ord(char) for char in ticker) * 1_000),
-        market_cap=None,
-        fifty_two_week_high=round(base_price * 1.24, 2),
-        fifty_two_week_low=round(base_price * 0.72, 2),
+        open=round(previous_close * 1.001, 2),
+        day_high=round(base_price * 1.012, 2),
+        day_low=round(base_price * 0.988, 2),
+        volume=int(anchor["volume"]),
+        market_cap=anchor["market_cap"],
+        fifty_two_week_high=round(base_price * 1.14, 2),
+        fifty_two_week_low=round(base_price * 0.86, 2),
         source="sample",
         is_degraded=True,
         provider_message=message,
@@ -222,23 +273,27 @@ def _sample_history(ticker: str, period: str, interval: str, message: str) -> Hi
     days = _period_days(period)
     step = 7 if period == "max" else 1
     start = date.today() - timedelta(days=days)
-    base_price = 734.25 if ticker == "NOW" else 100.0 + (sum(ord(char) for char in ticker) % 250)
+    anchor = _anchor_for(ticker)
+    base_price = float(anchor["price"])
+    base_volume = int(anchor["volume"])
     points: list[HistoryPoint] = []
 
     for offset in range(0, days + 1, step):
         current_date = start + timedelta(days=offset)
-        drift = offset / max(days, 1)
-        wave = ((offset % 23) - 11) / 250
-        close = round(base_price * (0.82 + drift * 0.24 + wave), 2)
+        cycle = ((offset % 21) - 10) / 10
+        slow_wave = ((offset % 89) - 44) / 44
+        close = round(base_price * (1 + cycle * 0.018 + slow_wave * 0.045), 2)
+        open_price = round(close * (1 + (((offset % 7) - 3) / 3_000)), 2)
+        intraday_range = 0.008 + abs(cycle) * 0.004
         points.append(
             HistoryPoint(
                 date=current_date,
-                open=round(close * 0.996, 2),
-                high=round(close * 1.012, 2),
-                low=round(close * 0.988, 2),
+                open=open_price,
+                high=round(max(open_price, close) * (1 + intraday_range), 2),
+                low=round(min(open_price, close) * (1 - intraday_range), 2),
                 close=close,
                 adj_close=close,
-                volume=950_000 + ((offset + len(ticker)) % 40) * 18_000,
+                volume=round(base_volume * (0.78 + ((offset + len(ticker)) % 20) / 50)),
             )
         )
 
@@ -248,6 +303,45 @@ def _sample_history(ticker: str, period: str, interval: str, message: str) -> Hi
         interval=interval,
         points=points,
         source="sample",
+        is_degraded=True,
+        provider_message=message,
+        fetched_at=datetime.now(UTC),
+    )
+
+
+def _quote_from_history(
+    ticker: str,
+    history: HistoryResponse,
+    message: str,
+) -> QuoteResponse | None:
+    points = history.points
+    if len(points) < 2:
+        return None
+
+    anchor = _anchor_for(ticker)
+    last = points[-1]
+    previous = points[-2]
+    recent = points[-252:] if len(points) >= 252 else points
+    volume_window = points[-20:] if len(points) >= 20 else points
+    average_volume = int(
+        sum(point.volume for point in volume_window) / max(len(volume_window), 1)
+    )
+
+    return QuoteResponse(
+        ticker=ticker,
+        name=anchor["name"],
+        currency=anchor["currency"],
+        exchange=anchor["exchange"],
+        price=round(last.close, 2),
+        previous_close=round(previous.close, 2),
+        open=round(last.open, 2),
+        day_high=round(max(last.high, last.open, last.close), 2),
+        day_low=round(min(last.low, last.open, last.close), 2),
+        volume=average_volume,
+        market_cap=anchor["market_cap"],
+        fifty_two_week_high=round(max(point.high for point in recent), 2),
+        fifty_two_week_low=round(min(point.low for point in recent), 2),
+        source=history.source,
         is_degraded=True,
         provider_message=message,
         fetched_at=datetime.now(UTC),
@@ -264,7 +358,12 @@ def get_quote(ticker: str) -> QuoteResponse:
     try:
         info = _ticker_info(ticker)
     except UpstreamProviderError as exc:
-        response = _sample_quote(ticker, str(exc))
+        message = str(exc)
+        history = get_history(ticker, "1y", "1d")
+        response = _quote_from_history(ticker, history, message) or _sample_quote(
+            ticker,
+            message,
+        )
         _set_cached_response(cache_key, response, FALLBACK_CACHE_TTL_SECONDS)
         return response
 
@@ -294,7 +393,14 @@ def get_history(ticker: str, period: str = "1y", interval: str = "1d") -> Histor
         return response
 
     if frame.empty:
-        raise MarketDataError(f"No historical data found for ticker '{ticker}'.")
+        response = _sample_history(
+            ticker,
+            period,
+            interval,
+            f"No historical data found for ticker '{ticker}'. Showing fallback data.",
+        )
+        _set_cached_response(cache_key, response, FALLBACK_CACHE_TTL_SECONDS)
+        return response
 
     points: list[HistoryPoint] = []
     for index, row in frame.reset_index().iterrows():
@@ -374,6 +480,16 @@ def get_snapshot(
                 _set_cached_response(profile_key, profile, FALLBACK_CACHE_TTL_SECONDS)
 
     history = get_history(ticker, period, interval)
+    if quote.is_degraded:
+        history_quote = _quote_from_history(
+            ticker,
+            history,
+            quote.provider_message or history.provider_message or "Using fallback market data.",
+        )
+        if history_quote is not None:
+            quote = history_quote
+            _set_cached_response(quote_key, quote, FALLBACK_CACHE_TTL_SECONDS)
+
     is_degraded = quote.is_degraded or profile.is_degraded or history.is_degraded
     provider_message = (
         quote.provider_message or profile.provider_message or history.provider_message

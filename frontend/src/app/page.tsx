@@ -12,8 +12,14 @@ export default function Dashboard() {
   const { data: bars } = useApi<Bar[]>("/history/NOW?period=1y&interval=1d");
   const { data: signals } = useApi<Signals>("/signals/NOW");
   const line = (bars ?? []).map((b) => ({ time: b.date, value: b.close }));
+  const isFallback = Boolean(quote?.stale || quote?.source === "sample" || quote?.source === "cache");
   return (
     <div className="space-y-4">
+      {isFallback ? (
+        <section className="terminal-card border-[var(--amber)] p-3 text-sm text-[var(--amber)]">
+          Fallback/Sample Data
+        </section>
+      ) : null}
       <div className="grid grid-cols-4 gap-4">
         <QuoteCard label="Volume" value={(quote?.volume ?? 0).toLocaleString()} />
         <QuoteCard label="Prev Close" value={quote?.prev_close ?? 0} />

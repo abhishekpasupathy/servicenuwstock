@@ -20,7 +20,7 @@ export function TopBar() {
         </div>
       </div>
       <div className="flex items-center gap-3 text-xs text-[var(--text-muted)]">
-        {data?.stale ? <span className="rounded bg-[var(--amber-bg)] px-2 py-1 text-[var(--amber)]">Using last known data</span> : null}
+        {data?.stale ? <span className="rounded bg-[var(--amber-bg)] px-2 py-1 text-[var(--amber)]">Fallback/Sample Data</span> : null}
         <span className="rounded border border-[var(--border)] px-2 py-1">{data?.source ?? "loading"}</span>
         <span>{data?.timestamp ? new Date(data.timestamp).toLocaleTimeString() : "--"}</span>
         <button aria-label="Refresh quote" onClick={() => mutate()} className="rounded border border-[var(--border)] p-2 hover:bg-[var(--bg-hover)]"><RefreshCw size={14} /></button>

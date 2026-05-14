@@ -11,6 +11,10 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     alpha_vantage_key: str | None = None
     default_ticker: str = "NOW"
+    sqlite_path: str = "./data/dadstock.sqlite"
+    cache_ttl_seconds: int = 300
+    market_cache_ttl_seconds: int = 1800
+    market_fallback_cache_ttl_seconds: int = 600
     cache_quote_ttl: int = 60
     cache_ohlcv_ttl: int = 300
     cache_fundamentals_ttl: int = 21600

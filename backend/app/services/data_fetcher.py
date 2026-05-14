@@ -83,15 +83,14 @@ async def _alpha_daily(ticker: str) -> pd.DataFrame:
 def _demo_bars(days: int = 520) -> list[dict[str, Any]]:
     start = datetime.now(UTC).date() - timedelta(days=days)
     bars: list[dict[str, Any]] = []
-    price = DEMO_PRICE * 0.88
     for i in range(days):
         if i % 7 in (5, 6):
             continue
-        wave = math.sin(i / 18) * 1.2 + math.sin(i / 55) * 3.5
-        close = max(20, price + i * 0.025 + wave)
+        wave = math.sin(i / 18) * 1.4 + math.sin(i / 55) * 2.4
+        close = max(20, DEMO_PRICE + wave)
         open_ = close * (1 + math.sin(i) * 0.004)
-        high = max(open_, close) * 1.012
-        low = min(open_, close) * 0.988
+        high = max(open_, close) * 1.01
+        low = min(open_, close) * 0.99
         bars.append(
             {
                 "date": str(start + timedelta(days=i)),
@@ -102,10 +101,6 @@ def _demo_bars(days: int = 520) -> list[dict[str, Any]]:
                 "volume": int(1_350_000 + (math.sin(i / 9) + 1) * 450_000),
             }
         )
-    shift = DEMO_PRICE - bars[-1]["close"]
-    for bar in bars:
-        for field in ("open", "high", "low", "close"):
-            bar[field] = round(bar[field] + shift, 2)
     return bars
 
 
@@ -196,19 +191,21 @@ async def get_quote(ticker: str) -> dict[str, Any]:
         bars = await get_ohlcv(ticker)
         last = bars[-1]
         prev = bars[-2]["close"]
+        price = float(last["close"])
+        recent = bars[-252:] if len(bars) >= 252 else bars
         return {
             "ticker": ticker,
-            "price": DEMO_PRICE,
-            "change": round(DEMO_PRICE - prev, 2),
-            "change_pct": round((DEMO_PRICE - prev) / prev * 100, 2),
+            "price": price,
+            "change": round(price - prev, 2),
+            "change_pct": round((price - prev) / prev * 100, 2),
             "volume": last["volume"],
             "avg_volume": int(np.mean([b["volume"] for b in bars[-20:]])),
             "market_cap": 17_500_000_000,
             "pe_ratio": 38.0,
-            "week_52_high": 106.25,
-            "week_52_low": 61.2,
-            "day_high": 86.1,
-            "day_low": 83.9,
+            "week_52_high": round(max(float(b["high"]) for b in recent), 2),
+            "week_52_low": round(min(float(b["low"]) for b in recent), 2),
+            "day_high": round(max(float(last["high"]), price), 2),
+            "day_low": round(min(float(last["low"]), price), 2),
             "prev_close": prev,
             "open": last["open"],
             "source": "demo",

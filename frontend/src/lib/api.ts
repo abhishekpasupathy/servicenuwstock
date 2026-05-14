@@ -168,12 +168,26 @@ function deriveRisk(snapshot: Snapshot) {
 
 function deriveMonte(snapshot: Snapshot) {
   const quote = normalizeQuote(snapshot.quote, "NOW");
-  const start = quote.price || quote.prev_close || 1;
-  const percentiles = ["25", "50", "75"].reduce<Record<string, number[]>>((acc, key) => {
-    const drift = key === "25" ? -0.0015 : key === "75" ? 0.0018 : 0.0002;
-    acc[key] = Array.from({ length: 90 }, (_, index) => Number((start * (1 + drift) ** index).toFixed(2)));
-    return acc;
-  }, {});
+  const bars = normalizeBars(snapshot.history ?? {});
+  const closes = bars.map((bar) => bar.close).filter((value) => value > 0);
+  const start = closes.at(-1) || quote.price || quote.prev_close || 1;
+  const returns = closes.slice(1).map((close, index) => (close - closes[index]) / closes[index]);
+  const avg = returns.reduce((sum, value) => sum + value, 0) / (returns.length || 1);
+  const variance =
+    returns.reduce((sum, value) => sum + (value - avg) ** 2, 0) / (returns.length || 1);
+  const dailyVolatility = Math.max(0.003, Math.min(0.025, Math.sqrt(variance)));
+  const boundedDrift = Math.max(-0.0004, Math.min(0.0004, avg));
+  const percentiles = {
+    "25": Array.from({ length: 90 }, (_, index) =>
+      Number((start * (1 + boundedDrift * index - dailyVolatility * Math.sqrt(index) * 0.7)).toFixed(2)),
+    ),
+    "50": Array.from({ length: 90 }, (_, index) =>
+      Number((start * (1 + boundedDrift * index)).toFixed(2)),
+    ),
+    "75": Array.from({ length: 90 }, (_, index) =>
+      Number((start * (1 + boundedDrift * index + dailyVolatility * Math.sqrt(index) * 0.7)).toFixed(2)),
+    ),
+  };
   return { current_price: start, prob_above_current: 50, percentiles };
 }
 

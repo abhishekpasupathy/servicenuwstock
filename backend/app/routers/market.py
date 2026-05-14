@@ -1,6 +1,12 @@
 from fastapi import APIRouter
 
 from app.services.data_fetcher import get_fundamentals, get_ohlcv, get_quote
+from app.services.market_data import (
+    get_history as get_market_history,
+    get_profile as get_market_profile,
+    get_quote as get_market_quote,
+    get_snapshot,
+)
 
 router = APIRouter(tags=["market"])
 
@@ -22,9 +28,19 @@ async def market_fundamentals(ticker: str):
 
 @router.get("/quote/{ticker}")
 async def legacy_quote(ticker: str):
-    return await get_quote(ticker)
+    return get_market_quote(ticker)
 
 
 @router.get("/history/{ticker}")
 async def legacy_history(ticker: str, period: str = "1y", interval: str = "1d"):
-    return {"ticker": ticker.upper(), "period": period, "interval": interval, "points": await get_ohlcv(ticker, period, interval)}
+    return get_market_history(ticker, period, interval)
+
+
+@router.get("/profile/{ticker}")
+async def profile(ticker: str):
+    return get_market_profile(ticker)
+
+
+@router.get("/snapshot/{ticker}")
+async def snapshot(ticker: str, period: str = "1y", interval: str = "1d"):
+    return get_snapshot(ticker, period, interval)

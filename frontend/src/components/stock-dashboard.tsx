@@ -325,7 +325,7 @@ export function StockDashboard() {
           <div className="mb-5 flex items-start gap-3 rounded-lg border border-amber-400/35 bg-amber-400/10 p-4 text-sm">
             <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" />
             <div>
-              <p className="font-semibold text-foreground">Showing fallback market data</p>
+              <p className="font-semibold text-foreground">Fallback/Sample Data</p>
               <p className="mt-1 text-muted-foreground">
                 {providerMessage ??
                   "The upstream provider is temporarily unavailable. Sample data is displayed so the dashboard remains usable."}
