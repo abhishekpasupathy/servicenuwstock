@@ -2,14 +2,14 @@
 
 import { useState } from "react";
 import { LinePanel } from "@/components/charts/LinePanel";
-import { API_BASE } from "@/lib/api";
+import { api } from "@/lib/api";
 
 type BacktestResult = { total_return_pct: number; win_rate_pct: number; max_drawdown_pct: number; sharpe_ratio: number; equity_curve: { date: string; value: number }[]; comparison: { strategy: number; buy_and_hold: number; spy_benchmark: number } };
 
 export default function BacktestPage() {
   const [result, setResult] = useState<BacktestResult>();
   async function run() {
-    setResult(await (await fetch(`${API_BASE}/backtest?ticker=NOW&strategy=composite&from=2022-01-01&to=2024-12-31`, { method: "POST" })).json());
+    setResult(await api<BacktestResult>("/backtest?ticker=NOW&strategy=composite&from=2022-01-01&to=2024-12-31", { method: "POST" }));
   }
   return (
     <div className="space-y-4">

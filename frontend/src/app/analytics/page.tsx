@@ -8,7 +8,7 @@ import type { Bar, Signals } from "@/lib/types";
 type Quant = { regime?: string; adx?: { value?: number } };
 
 export default function Analytics() {
-  const { data: bars } = useApi<Bar[]>("/market/ohlcv/NOW?period=1y&interval=1d");
+  const { data: bars } = useApi<Bar[]>("/history/NOW?period=1y&interval=1d");
   const { data: quant } = useApi<Quant>("/quant/indicators/NOW");
   const { data: signals } = useApi<Signals>("/signals/NOW");
   const line = (bars ?? []).map((b) => ({ time: b.date, value: b.close }));

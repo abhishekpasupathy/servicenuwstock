@@ -5,7 +5,7 @@ import { money, useApi } from "@/lib/api";
 import type { Quote } from "@/lib/types";
 
 export function TopBar() {
-  const { data, mutate } = useApi<Quote>("/market/quote/NOW");
+  const { data, mutate } = useApi<Quote>("/quote/NOW");
   const positive = (data?.change ?? 0) >= 0;
   return (
     <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-[var(--border)] bg-[var(--bg-secondary)] px-5">

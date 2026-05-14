@@ -19,7 +19,7 @@ const nav = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { data } = useApi<Quote>("/market/quote/NOW");
+  const { data } = useApi<Quote>("/quote/NOW");
   return (
     <aside className="fixed left-0 top-0 z-20 flex h-screen w-[220px] flex-col border-r border-[var(--border)] bg-[var(--bg-secondary)]">
       <div className="border-b border-[var(--border)] px-4 py-5 font-mono text-lg font-bold text-[var(--green)]">NOW TERMINAL</div>

@@ -73,29 +73,12 @@ export type MarketSnapshot = {
   metadata: SnapshotMetadata;
 };
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
+const DEFAULT_API_BASE_URL = "https://servicenuwstock-api.onrender.com/api/v1";
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL?.trim() || DEFAULT_API_BASE_URL;
 
 function getApiBaseUrl(): string {
-  if (!API_BASE_URL) {
-    throw new Error(
-      "The API URL is not configured. Set NEXT_PUBLIC_API_BASE_URL to your backend /api URL.",
-    );
-  }
-
-  return API_BASE_URL.replace(/\/$/, "");
-}
-
-function getApiBaseUrlCandidates(): string[] {
-  const baseUrl = getApiBaseUrl();
-  const candidates = [baseUrl];
-
-  if (/\/api$/i.test(baseUrl)) {
-    candidates.push(`${baseUrl}/v1`);
-  } else if (!/\/api\/v\d+$/i.test(baseUrl)) {
-    candidates.push(`${baseUrl}/api/v1`, `${baseUrl}/api`);
-  }
-
-  return Array.from(new Set(candidates));
+  return API_BASE_URL.replace(/\/+$/, "");
 }
 
 async function readErrorMessage(response: Response): Promise<string> {
@@ -115,10 +98,8 @@ async function readErrorMessage(response: Response): Promise<string> {
 }
 
 async function fetchJson<T>(path: string): Promise<T> {
-  let lastError: Error | null = null;
-
-  for (const baseUrl of getApiBaseUrlCandidates()) {
-    const url = `${baseUrl}${path}`;
+  const url = `${getApiBaseUrl()}${path}`;
+  try {
     const response = await fetch(url, {
       cache: "no-store",
       headers: {
@@ -127,18 +108,20 @@ async function fetchJson<T>(path: string): Promise<T> {
     });
 
     if (!response.ok) {
-      lastError = new Error(await readErrorMessage(response));
-      if (response.status === 404) {
-        continue;
-      }
-
-      throw lastError;
+      const message = await readErrorMessage(response);
+      console.error("[market-api] Request failed", {
+        url,
+        status: response.status,
+        message,
+      });
+      throw new Error(message);
     }
 
     return response.json() as Promise<T>;
+  } catch (error) {
+    console.error("[market-api] Request error", { url, error });
+    throw error;
   }
-
-  throw lastError ?? new Error("Unable to load market data.");
 }
 
 export function normalizeTicker(value: string): string {

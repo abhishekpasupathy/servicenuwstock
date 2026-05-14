@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { API_BASE, money, useApi } from "@/lib/api";
+import { api, money, useApi } from "@/lib/api";
 
 type Holding = { id: number; ticker: string; shares: number; avg_buy_price: number; current_price: number; total_value: number; pnl: number; pnl_pct: number };
 
@@ -10,7 +10,7 @@ export default function PortfolioPage() {
   const [shares, setShares] = useState("100");
   const [avg, setAvg] = useState("85");
   async function add() {
-    await fetch(`${API_BASE}/portfolio/holdings`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ticker: "NOW", shares: Number(shares), avg_buy_price: Number(avg) }) });
+    await api("/portfolio/holdings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ticker: "NOW", shares: Number(shares), avg_buy_price: Number(avg) }) });
     mutate();
   }
   const invested = (data ?? []).reduce((s, h) => s + h.shares * h.avg_buy_price, 0);

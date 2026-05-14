@@ -8,8 +8,8 @@ import { money, useApi } from "@/lib/api";
 import type { Bar, Quote, Signals } from "@/lib/types";
 
 export default function Dashboard() {
-  const { data: quote } = useApi<Quote>("/market/quote/NOW");
-  const { data: bars } = useApi<Bar[]>("/market/ohlcv/NOW?period=1y&interval=1d");
+  const { data: quote } = useApi<Quote>("/quote/NOW");
+  const { data: bars } = useApi<Bar[]>("/history/NOW?period=1y&interval=1d");
   const { data: signals } = useApi<Signals>("/signals/NOW");
   const line = (bars ?? []).map((b) => ({ time: b.date, value: b.close }));
   return (
