@@ -48,11 +48,17 @@ function formatCurrency(value: number | null | undefined, currency = "USD"): str
     return "N/A";
   }
 
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 2,
-  }).format(value);
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 2,
+    }).format(value);
+  } catch {
+    return new Intl.NumberFormat("en-US", {
+      maximumFractionDigits: 2,
+    }).format(value);
+  }
 }
 
 function formatNumber(value: number | null | undefined): string {
@@ -67,10 +73,15 @@ function formatNumber(value: number | null | undefined): string {
 }
 
 function formatDate(value: string): string {
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
-  }).format(new Date(`${value}T00:00:00`));
+  }).format(date);
 }
 
 function calculateDailyChange(snapshot: MarketSnapshot | null): number | null {
@@ -85,12 +96,17 @@ function calculateDailyChange(snapshot: MarketSnapshot | null): number | null {
 }
 
 function formatTimestamp(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "just now";
+  }
+
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",
-  }).format(new Date(value));
+  }).format(date);
 }
 
 function getDisplayError(message: string): string {
@@ -184,17 +200,25 @@ export function StockDashboard() {
 
   const chartData = useMemo<ChartDatum[]>(() => {
     return (
-      snapshot?.history.points.map((point) => ({
-        date: point.date,
-        close: point.close,
-        volume: point.volume,
-      })) ?? []
+      snapshot?.history.points.flatMap((point) =>
+        point.close === null
+          ? []
+          : [
+              {
+                date: point.date,
+                close: point.close,
+                volume: point.volume ?? 0,
+              },
+            ],
+      ) ?? []
     );
   }, [snapshot]);
 
   const dailyChange = calculateDailyChange(snapshot);
   const isPositiveChange = dailyChange !== null && dailyChange >= 0;
-  const currency = snapshot?.quote.currency ?? "USD";
+  const currency = snapshot?.quote.currency || "USD";
+  const displayTicker = snapshot?.quote.ticker || snapshot?.metadata.ticker || activeTicker;
+  const companyName = snapshot?.quote.name ?? snapshot?.profile.name;
   const isDegraded =
     snapshot?.metadata.is_degraded ??
     snapshot?.quote.is_degraded ??
@@ -259,7 +283,7 @@ export function StockDashboard() {
                   }}
                   className="h-11 w-full rounded-md border border-border bg-background pl-10 pr-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
                   maxLength={12}
-                  placeholder="AAPL"
+                  placeholder="Try NOW, AAPL, MSFT..."
                 />
               </div>
               <button
@@ -321,10 +345,10 @@ export function StockDashboard() {
                   {snapshot.quote.currency ?? "Currency unavailable"}
                 </p>
                 <h2 className="mt-2 flex flex-col gap-1 text-3xl font-semibold sm:flex-row sm:items-baseline">
-                  {snapshot.quote.ticker}
-                  {snapshot.quote.name ? (
+                  {displayTicker}
+                  {companyName ? (
                     <span className="text-xl font-medium text-muted-foreground sm:ml-3">
-                      {snapshot.quote.name}
+                      {companyName}
                     </span>
                   ) : null}
                 </h2>
@@ -447,11 +471,13 @@ export function StockDashboard() {
                             "Close",
                           ]}
                           labelFormatter={(label) =>
-                            new Intl.DateTimeFormat("en-US", {
-                              month: "short",
-                              day: "numeric",
-                              year: "numeric",
-                            }).format(new Date(`${label}T00:00:00`))
+                            Number.isNaN(new Date(`${label}T00:00:00`).getTime())
+                              ? String(label)
+                              : new Intl.DateTimeFormat("en-US", {
+                                  month: "short",
+                                  day: "numeric",
+                                  year: "numeric",
+                                }).format(new Date(`${label}T00:00:00`))
                           }
                         />
                         <Area
