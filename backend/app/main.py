@@ -1,15 +1,22 @@
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
+import uuid
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi.util import get_remote_address
 
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
-from app.routers import health, market
+from app.routers import alerts, backtest, health, insights, market, portfolio, quant, risk
 
 settings = get_settings()
 logger = get_logger(__name__)
+limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
 
 
 @asynccontextmanager
@@ -27,17 +34,48 @@ def create_app() -> FastAPI:
         description="Stock dashboard API using free public market data sources.",
         lifespan=lifespan,
     )
+    app.state.limiter = limiter
+    app.add_middleware(SlowAPIMiddleware)
 
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
+        allow_origin_regex=r"https://.*\.vercel\.app",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
 
+    @app.middleware("http")
+    async def add_request_id(request: Request, call_next):
+        request_id = request.headers.get("x-request-id", str(uuid.uuid4()))
+        response = await call_next(request)
+        response.headers["x-request-id"] = request_id
+        return response
+
+    @app.exception_handler(RateLimitExceeded)
+    async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+        return JSONResponse(
+            status_code=429,
+            content={"error": "Rate limit exceeded", "code": "RATE_LIMITED", "request_id": request.headers.get("x-request-id", "")},
+        )
+
+    @app.exception_handler(Exception)
+    async def generic_handler(request: Request, exc: Exception):
+        logger.exception("Unhandled request error")
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(exc), "code": "INTERNAL_ERROR", "request_id": request.headers.get("x-request-id", "")},
+        )
+
     app.include_router(health.router, prefix=settings.api_prefix)
     app.include_router(market.router, prefix=settings.api_prefix)
+    app.include_router(quant.router, prefix=settings.api_prefix)
+    app.include_router(risk.router, prefix=settings.api_prefix)
+    app.include_router(insights.router, prefix=settings.api_prefix)
+    app.include_router(portfolio.router, prefix=settings.api_prefix)
+    app.include_router(backtest.router, prefix=settings.api_prefix)
+    app.include_router(alerts.router, prefix=settings.api_prefix)
     return app
 
 

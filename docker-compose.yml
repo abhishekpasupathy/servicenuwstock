@@ -1,0 +1,53 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: now
+      POSTGRES_PASSWORD: nowpass
+      POSTGRES_DB: nowdb
+    volumes:
+      - nowpg:/var/lib/postgresql/data
+    networks: [nownet]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U now -d nowdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  redis:
+    image: redis:7-alpine
+    networks: [nownet]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  backend:
+    build: ./backend
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    env_file: .env.example
+    ports: ["8000:8000"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks: [nownet]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+  frontend:
+    build: ./frontend
+    command: npm run dev -- --hostname 0.0.0.0 --port 3000
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000/api
+    ports: ["3000:3000"]
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks: [nownet]
+networks:
+  nownet:
+volumes:
+  nowpg:

@@ -3,26 +3,55 @@
 @tailwind utilities;
 
 :root {
-  --background: 222 47% 6%;
-  --foreground: 210 40% 96%;
-  --muted: 220 24% 15%;
-  --muted-foreground: 215 16% 68%;
-  --border: 218 22% 20%;
-  --card: 222 39% 9%;
-  --card-foreground: 210 40% 96%;
-  --primary: 168 76% 48%;
-  --primary-foreground: 222 47% 6%;
-  --accent: 215 94% 66%;
-  --accent-foreground: 222 47% 6%;
-  --destructive: 0 72% 51%;
-  --destructive-foreground: 210 40% 96%;
+  --bg-primary: #0a0e1a;
+  --bg-secondary: #0d1220;
+  --bg-tertiary: #111827;
+  --bg-hover: #141d2e;
+  --border: #1a2535;
+  --border-accent: #1e3a4a;
+  --text-primary: #e0e6f0;
+  --text-muted: #8899aa;
+  --text-dim: #556677;
+  --green: #00d4aa;
+  --red: #ff4d6d;
+  --amber: #f0c040;
+  --blue: #4488ff;
+  --purple: #a855f7;
+  --green-bg: rgba(0, 212, 170, 0.08);
+  --red-bg: rgba(255, 77, 109, 0.08);
+  --amber-bg: rgba(240, 192, 64, 0.08);
 }
 
 * {
-  border-color: hsl(var(--border));
+  border-color: var(--border);
+  letter-spacing: 0;
 }
 
 body {
-  background: hsl(var(--background));
-  color: hsl(var(--foreground));
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: Inter, Arial, sans-serif;
+}
+
+.terminal-card {
+  background: var(--bg-secondary);
+  border: 0.5px solid var(--border);
+  border-radius: 8px;
+}
+
+.positive { color: var(--green); }
+.negative { color: var(--red); }
+.neutral { color: var(--amber); }
+
+.live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--green);
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: .35; transform: scale(1.25); }
 }
