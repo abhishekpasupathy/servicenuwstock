@@ -57,3 +57,37 @@ export type Signals = {
   signal_strength: number;
   indicator_breakdown: Record<string, { score: number; weight: number; contribution: number; signal: string }>;
 };
+
+export type Prediction = {
+  ticker: string;
+  current_price: number;
+  day_prediction: {
+    predicted_high: number;
+    predicted_low: number;
+    predicted_mid: number;
+    atr_value: number;
+    atr_pct: number;
+  };
+  year_prediction: {
+    median_target: number;
+    base_target: number;
+    ci_95_low: number;
+    ci_95_high: number;
+    prob_above_current: number;
+    prob_10pct_gain: number;
+    prob_20pct_gain: number;
+    prob_10pct_loss: number;
+    expected_return_pct: number;
+  };
+  direction_bias: number;
+  direction_label: string;
+  regime: string;
+  composite_score: number;
+  action: string;
+  confidence: number;
+  support_levels: number[];
+  resistance_levels: number[];
+  algorithms: Record<string, { weight: number; value: string | number; description: string }>;
+  source: string;
+  stale?: boolean;
+};

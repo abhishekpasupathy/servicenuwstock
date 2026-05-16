@@ -1,8 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routes.market import router as market_router
-from app.routes.websocket import router as websocket_router
+from app.routers.market import router as market_router
+from app.routers.quant import router as quant_router
+from app.routers.websocket import router as websocket_router
 
 app = FastAPI()
 
@@ -15,4 +16,5 @@ app.add_middleware(
 )
 
 app.include_router(market_router)
+app.include_router(quant_router)
 app.include_router(websocket_router)

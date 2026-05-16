@@ -193,6 +193,10 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     return fetchJson(`/analytics/${encodeTicker(ticker)}`, init) as Promise<T>;
   }
 
+  if (path.startsWith("/prediction/")) {
+    return fetchJson(`/prediction/${encodeTicker(ticker)}`, init) as Promise<T>;
+  }
+
   if (path.startsWith("/insights/")) {
     return fetchJson(`/insights/${encodeTicker(ticker)}`, init) as Promise<T>;
   }
@@ -211,7 +215,8 @@ export function useApi<T>(path: string, refreshInterval = 0) {
 }
 
 export function money(value?: number | null) {
-  return `$${Number(value ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}`;
+  if (value === null || value === undefined || value === 0) return "--";
+  return `$${Number(value).toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}`;
 }
 
 export function pct(value?: number | null) {
