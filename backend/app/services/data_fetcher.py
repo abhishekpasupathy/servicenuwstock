@@ -1,5 +1,6 @@
 import asyncio
 import math
+import time
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -16,6 +17,26 @@ from app.core.logging import get_logger
 settings = get_settings()
 DEMO_PRICE = 85.0
 logger = get_logger(__name__)
+
+# Fast in-memory cache that survives within the process
+_fast_cache: dict[str, tuple[float, Any]] = {}
+_FAST_CACHE_TTL = 60  # 60 seconds for quote
+_FAST_CACHE_OHLCV_TTL = 300  # 5 minutes for OHLCV
+
+
+def _fast_get(key: str, ttl: float) -> Any | None:
+    item = _fast_cache.get(key)
+    if not item:
+        return None
+    expires_at, value = item
+    if expires_at < time.time():
+        _fast_cache.pop(key, None)
+        return None
+    return value
+
+
+def _fast_set(key: str, value: Any, ttl: float) -> None:
+    _fast_cache[key] = (time.time() + ttl, value)
 
 
 def _ticker(ticker: str) -> str:
@@ -119,8 +140,13 @@ async def get_ohlcv(ticker: str, period: str = "1y", interval: str = "1d") -> li
     ticker = _ticker(ticker)
     ttl = settings.cache_ohlcv_ttl if interval == "1d" else 3600
     key = f"ohlcv:{ticker}:{period}:{interval}"
+    # Fast in-memory check first (no Redis roundtrip)
+    fast = _fast_get(key, _FAST_CACHE_OHLCV_TTL)
+    if fast:
+        return fast
     cached = await cache_get(key)
     if cached:
+        _fast_set(key, cached, _FAST_CACHE_OHLCV_TTL)
         return cached
     stale_key = f"stale:{key}"
     try:
@@ -142,6 +168,7 @@ async def get_ohlcv(ticker: str, period: str = "1y", interval: str = "1d") -> li
         for bar in bars:
             bar["source"] = "yfinance"
         await cache_set(key, bars, ttl)
+        _fast_set(key, bars, _FAST_CACHE_OHLCV_TTL)
         await cache_set(stale_key, bars, 86400 * 7)
         return bars
     except Exception as exc:
@@ -155,21 +182,31 @@ async def get_ohlcv(ticker: str, period: str = "1y", interval: str = "1d") -> li
             for bar in bars:
                 bar["source"] = "alpha_vantage"
             await cache_set(key, bars, ttl)
+            _fast_set(key, bars, _FAST_CACHE_OHLCV_TTL)
             await cache_set(stale_key, bars, 86400 * 7)
             return bars
         except Exception as alpha_exc:
             logger.warning("alpha vantage ohlcv request failed for %s: %s", ticker, alpha_exc)
             stale = await cache_get(stale_key)
             if stale:
-                return [{**bar, "source": "cache", "stale": True} for bar in stale]
-            return [{**bar, "source": "synthetic", "stale": True} for bar in _demo_bars(ticker)]
+                result = [{**bar, "source": "cache", "stale": True} for bar in stale]
+                _fast_set(key, result, 60)
+                return result
+            synthetic = [{**bar, "source": "synthetic", "stale": True} for bar in _demo_bars(ticker)]
+            _fast_set(key, synthetic, 60)
+            return synthetic
 
 
 async def get_quote(ticker: str) -> dict[str, Any]:
     ticker = _ticker(ticker)
     key = f"quote:{ticker}"
+    # Fast in-memory check first
+    fast = _fast_get(key, _FAST_CACHE_TTL)
+    if fast:
+        return fast
     cached = await cache_get(key)
     if cached:
+        _fast_set(key, cached, _FAST_CACHE_TTL)
         return cached
     stale_key = f"stale:{key}"
     try:
@@ -195,20 +232,23 @@ async def get_quote(ticker: str) -> dict[str, Any]:
             "timestamp": datetime.now(UTC).isoformat(),
         }
         await cache_set(key, quote, settings.cache_quote_ttl)
+        _fast_set(key, quote, _FAST_CACHE_TTL)
         await cache_set(stale_key, quote, 86400 * 7)
         return quote
     except Exception as exc:
         logger.warning("quote request failed for %s: %s", ticker, exc)
         stale = await cache_get(stale_key)
         if stale:
-            return {**stale, "source": "cache", "stale": True}
+            result = {**stale, "source": "cache", "stale": True}
+            _fast_set(key, result, 60)
+            return result
         bars = await get_ohlcv(ticker)
         last = bars[-1]
         prev = bars[-2]["close"]
         price = float(last["close"])
         recent = bars[-252:] if len(bars) >= 252 else bars
         _, _, synthetic_market_cap = _synthetic_anchor(ticker)
-        return {
+        result = {
             "ticker": ticker,
             "price": price,
             "change": round(price - prev, 2),
@@ -227,6 +267,8 @@ async def get_quote(ticker: str) -> dict[str, Any]:
             "stale": True,
             "timestamp": datetime.now(UTC).isoformat(),
         }
+        _fast_set(key, result, 60)
+        return result
 
 
 async def get_fundamentals(ticker: str) -> dict[str, Any]:

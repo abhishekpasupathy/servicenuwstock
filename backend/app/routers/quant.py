@@ -1,10 +1,11 @@
+import asyncio
 import math
 from typing import Any
 
 from fastapi import APIRouter
 
 from app.cache import cache_set
-from app.services.data_fetcher import bars_to_frame, get_ohlcv, get_quote
+from app.services.data_fetcher import _fast_get, _fast_set, bars_to_frame, get_ohlcv, get_quote
 from app.services.monte_carlo import run_monte_carlo
 from app.services.quant_engine import compute_all_indicators
 from app.services.risk_engine import compute_risk_metrics
@@ -21,8 +22,10 @@ async def indicators(ticker: str):
 
 @router.get("/signals/{ticker}")
 async def signals(ticker: str):
-    bars = await get_ohlcv(ticker, "1y", "1d")
-    quote = await get_quote(ticker)
+    bars, quote = await asyncio.gather(
+        get_ohlcv(ticker, "1y", "1d"),
+        get_quote(ticker),
+    )
     payload = generate_signals(compute_all_indicators(bars_to_frame(bars)), quote["price"])
     await cache_set(f"signals:{ticker.upper()}", payload, 300)
     return payload
@@ -30,13 +33,15 @@ async def signals(ticker: str):
 
 @router.get("/analytics/{ticker}")
 async def analytics(ticker: str):
-    bars = await get_ohlcv(ticker, "2y", "1d")
+    bars, quote = await asyncio.gather(
+        get_ohlcv(ticker, "2y", "1d"),
+        get_quote(ticker),
+    )
     df = bars_to_frame(bars)
-    quote = await get_quote(ticker)
     quant = compute_all_indicators(df)
     signals_payload = generate_signals(quant, quote["price"])
     risk = compute_risk_metrics(df, None, signals_payload["buy_prob"] / 100)
-    monte = run_monte_carlo(df, 1000, 90)
+    monte = run_monte_carlo(df, 500, 90)  # Reduced from 1000 to 500
     return {
         "ticker": quote["ticker"],
         "quote": quote,
@@ -51,13 +56,21 @@ async def analytics(ticker: str):
 
 @router.get("/prediction/{ticker}")
 async def prediction(ticker: str):
-    bars = await get_ohlcv(ticker, "2y", "1d")
+    ticker = ticker.strip().upper()
+    cache_key = f"prediction:{ticker}"
+    cached = _fast_get(cache_key, 120)
+    if cached:
+        return cached
+
+    bars, quote = await asyncio.gather(
+        get_ohlcv(ticker, "2y", "1d"),
+        get_quote(ticker),
+    )
     df = bars_to_frame(bars)
-    quote = await get_quote(ticker)
     price = float(quote["price"])
     quant = compute_all_indicators(df)
     signals_payload = generate_signals(quant, price)
-    monte_year = run_monte_carlo(df, 2000, 252)
+    monte_year = run_monte_carlo(df, 500, 252)  # Reduced from 2000 to 500
 
     # Day range prediction using ATR + Bollinger Bands
     atr_val = float(quant["atr"]["value"])
@@ -117,7 +130,7 @@ async def prediction(ticker: str):
         "regime_detection": {"weight": 0.15, "value": regime, "description": "ADX + EMA trend regime classification"},
         "rsi_momentum": {"weight": 0.10, "value": round(float(quant["rsi"]["value"]), 2), "description": "RSI momentum indicator"},
         "macd_signal": {"weight": 0.10, "value": round(float(quant["macd"]["histogram"]), 4), "description": "MACD histogram for trend direction"},
-        "monte_carlo": {"weight": 0.05, "value": f"{monte_year['prob_above_current']}% above current", "description": "Monte Carlo simulation (2000 paths, 252 days)"},
+        "monte_carlo": {"weight": 0.05, "value": f"{monte_year['prob_above_current']}% above current", "description": "Monte Carlo simulation (500 paths, 252 days)"},
     }
 
     # Direction label
@@ -132,8 +145,8 @@ async def prediction(ticker: str):
     else:
         direction_label = "STRONG BEARISH"
 
-    return {
-        "ticker": ticker.upper(),
+    result = {
+        "ticker": ticker,
         "current_price": price,
         "day_prediction": {
             "predicted_high": day_high_pred,
@@ -165,3 +178,5 @@ async def prediction(ticker: str):
         "source": quote.get("source", "unknown"),
         "stale": bool(quote.get("stale")),
     }
+    _fast_set(cache_key, result, 120)
+    return result
