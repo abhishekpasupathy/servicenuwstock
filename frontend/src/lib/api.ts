@@ -219,8 +219,7 @@ export function useApi<T>(path: string, refreshInterval = 0) {
 }
 
 export function money(value?: number | null) {
-  if (value === null || value === undefined || value === 0) return "--";
-  return `$${Number(value).toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}`;
+  return `$${Number(value ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}`;
 }
 
 export function pct(value?: number | null) {
