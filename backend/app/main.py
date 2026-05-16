@@ -16,7 +16,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(market_router)
-app.include_router(quant_router)
-app.include_router(trading_system_router)
-app.include_router(websocket_router)
+app.include_router(market_router, prefix="/api")
+app.include_router(quant_router, prefix="/api")
+app.include_router(trading_system_router, prefix="/api")
+app.include_router(websocket_router, prefix="/api")
