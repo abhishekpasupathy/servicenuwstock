@@ -1,12 +1,14 @@
 import useSWR from "swr";
 import type { Bar, Quote, Signals } from "@/lib/types";
 
-const DEFAULT_API_BASE = "https://servicenuwstock-api.onrender.com/api";
+const DEFAULT_API_BASE = "/api";
 
 export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL?.trim() || DEFAULT_API_BASE).replace(
   /\/+$/,
   "",
 );
+
+export const WS_BASE = "wss://servicenuwstock-api.onrender.com";
 
 type RecordLike = Record<string, unknown>;
 

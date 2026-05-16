@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { API_BASE } from "@/lib/api";
+import { API_BASE, WS_BASE } from "@/lib/api";
 import type { RealtimeQuote } from "@/lib/types";
 
 function realtimeBaseUrl(path: string): string {
-  const base = new URL(API_BASE);
-  base.protocol = base.protocol === "https:" ? "wss:" : "ws:";
+  const wsOrigin = WS_BASE || API_BASE.replace(/^http/, "ws");
+  const base = new URL(wsOrigin);
   base.pathname = path;
   base.search = "";
   return base.toString();
