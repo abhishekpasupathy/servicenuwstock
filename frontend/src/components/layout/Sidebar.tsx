@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, BarChart3, Brain, Gauge, Home, LineChart, Settings, TrendingUp, WalletCards } from "lucide-react";
+import { Activity, BarChart3, Brain, Crosshair, Gauge, Home, LineChart, Settings, TrendingUp, WalletCards } from "lucide-react";
 import { money } from "@/lib/api";
 import { useRealtimeQuote } from "@/hooks/useRealtimeQuote";
 
@@ -14,6 +14,7 @@ const nav = [
   { href: "/insights", label: "AI Insights", icon: Brain },
   { href: "/portfolio", label: "Portfolio", icon: WalletCards },
   { href: "/prediction", label: "SonsPrediction", icon: TrendingUp },
+  { href: "/trading-system", label: "Trading System", icon: Crosshair },
   { href: "/backtest", label: "Backtest", icon: LineChart },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

@@ -91,3 +91,6 @@ export type Prediction = {
   source: string;
   stale?: boolean;
 };
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type TradingSystem = Record<string, any>;

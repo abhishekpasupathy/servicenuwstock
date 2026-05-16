@@ -197,6 +197,10 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     return fetchJson(`/prediction/${encodeTicker(ticker)}`, init) as Promise<T>;
   }
 
+  if (path.startsWith("/trading-system/")) {
+    return fetchJson(`/trading-system/${encodeTicker(ticker)}`, init) as Promise<T>;
+  }
+
   if (path.startsWith("/insights/")) {
     return fetchJson(`/insights/${encodeTicker(ticker)}`, init) as Promise<T>;
   }
