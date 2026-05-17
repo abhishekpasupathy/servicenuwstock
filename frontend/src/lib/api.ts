@@ -1,12 +1,12 @@
 import useSWR from "swr";
 import type { Bar, Quote, Signals } from "@/lib/types";
 
-const DEFAULT_API_BASE = "/api";
+const RENDER_URL = "https://servicenuwstock-api.onrender.com/api";
 
-export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL?.trim() || DEFAULT_API_BASE).replace(
-  /\/+$/,
-  "",
-);
+export const API_BASE = (typeof window !== "undefined"
+  ? (process.env.NEXT_PUBLIC_API_BASE_URL?.trim() || RENDER_URL)
+  : RENDER_URL
+).replace(/\/+$/, "");
 
 export const WS_BASE = "wss://servicenuwstock-api.onrender.com";
 
