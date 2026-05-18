@@ -49,7 +49,7 @@ export function useRealtimeQuote(ticker: string) {
   const reconnectDelay = useRef(1000);
   const manuallyClosed = useRef(false);
 
-  const wsUrl = useMemo(() => realtimeBaseUrl(`/ws/quote/${encodeURIComponent(normalizedTicker)}`), [normalizedTicker]);
+  const wsUrl = useMemo(() => realtimeBaseUrl(`/api/ws/quote/${encodeURIComponent(normalizedTicker)}`), [normalizedTicker]);
   const sseUrl = useMemo(() => `${API_BASE.replace(/\/+$/, "")}/sse/quote/${encodeURIComponent(normalizedTicker)}`, [normalizedTicker]);
 
   const clearReconnect = () => {
